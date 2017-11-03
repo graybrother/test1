@@ -50,10 +50,10 @@ void FeatureTracker::process(cv:: Mat &frame, cv:: Mat &output) {
         initial.resize(k);
         // 3. handle the accepted tracked points
         handleTrackedPoints(output);
-        if(points[1].size()>10)
-            Findobj(points[1],objNum);
-        for(k=0; k<objNum; k++)
-             cv::rectangle(output, objRect[k], cv::Scalar(255, 255, 255), 2);
+//        if(points[1].size()>10)
+//            Findobj(points[1],objNum);
+//        for(k=0; k<objNum; k++)
+//            cv::rectangle(output, objRect[k], cv::Scalar(255, 255, 255), 2);
         // 4. current points and image become previous ones
         std::swap(points[1], points[0]);
         cv::swap(gray_prev, gray);
@@ -93,7 +93,7 @@ void FeatureTracker::detectFeaturePoints() {
 // determine if new points should be added
 bool FeatureTracker::addNewPoints() {
         // if too few points
-        return points[0].size()<=25;
+        return points[0].size()<=10;
 }
 
 // determine which tracked point should be accepted
@@ -101,7 +101,7 @@ bool FeatureTracker::acceptTrackedPoint(int i) {
 return status[i] &&
 // if point has moved
 (abs(points[0][i].x-points[1][i].x)+
-(abs(points[0][i].y-points[1][i].y))>1);
+(abs(points[0][i].y-points[1][i].y))>0);
 }
 
 // handle the currently tracked points

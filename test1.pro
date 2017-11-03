@@ -23,7 +23,9 @@ SOURCES += main.cpp\
     vibe-background-sequential.c \
     haarcascade.cpp \
     hog-svm.cpp \
-    objfeature.cpp
+    objfeature.cpp \
+    lktracker.cpp
+
 
 HEADERS  += mainwindow.h \
     videoprocessor.h \

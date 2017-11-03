@@ -328,10 +328,10 @@ void MainWindow::on_vibe_button_clicked()
              is a 5x5 median filter. */
          // medianBlur(segmentationMap, segmentationMap, 3); /* 3x3 median filtering */
 
-          erode(segmentationMap,segmentationMap,Mat());
         //  erode(segmentationMap,segmentationMap,Mat());
-          dilate(segmentationMap,segmentationMap,Mat());
-           dilate(segmentationMap,segmentationMap,Mat());
+        //  erode(segmentationMap,segmentationMap,Mat());
+       //   dilate(segmentationMap,segmentationMap,Mat());
+       //    dilate(segmentationMap,segmentationMap,Mat());
           /* Shows the current frame and the segmentation map. */
           imshow("Frame", frame);
           imshow("Segmentation by ViBe", segmentationMap);
@@ -339,7 +339,7 @@ void MainWindow::on_vibe_button_clicked()
           ++frameNumber;
 
           /* Gets the input from the keyboard. */
-          keyboard = waitKey(33);
+          keyboard = waitKey(1);
         }
 
         /* Delete capture object. */
@@ -976,10 +976,10 @@ void MainWindow::on_lkvb_button_clicked()
    //     int maxObjNum=  4;
         using namespace std;
 
-        int left=80;
-        int top=80;
-        int width=540;
-        int height=120;
+        int left=10;
+        int top=10;
+        int width=630;
+        int height=300;
         int CENTERx=width/2;
         int CENTERy=height/2;
         Rect processRange(left,top,width,height);
@@ -1044,6 +1044,10 @@ void MainWindow::on_lkvb_button_clicked()
         Rect outputRect(left+CENTERx-20,top+CENTERy-20,40,40);
         int  outputTimeout=0;
         bool inScreenRange=false;
+
+        //-----------------------测试时间
+        struct timeval tsBegin,tsEnd;
+
 
         for(i=0; i< MAXOBJNUM; i++) {
             object_Feature_Init(objFeature[i]);
@@ -1114,7 +1118,10 @@ void MainWindow::on_lkvb_button_clicked()
           if(frame_prev.empty())
             frame.copyTo(frame_prev);
 
-         // ViBe: Segmentation
+         //test the time
+          gettimeofday(&tsBegin, NULL);
+
+          // ViBe: Segmentation
 
           libvibeModel_Sequential_Segmentation_8u_C1R(model, frame.data, segmentationMap.data);
 
@@ -1696,6 +1703,11 @@ output:
          imshow("Tracking",inputFrame);
          imshow("updateMap",updateMap);
 
+         gettimeofday(&tsEnd, NULL);//-----------------------测试时间
+         long runtimes;
+         runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
+         cout<<"time: "<<runtimes/1000<<endl;
+
           /* Gets the input from the keyboard. */
           keyboard = waitKey(60);
    //       if ((frameNumber % 100)==0){
@@ -1714,4 +1726,40 @@ output:
         libvibeModel_Sequential_Free(model);
         destroyAllWindows();
         return;
+}
+
+void MainWindow::on_lktracker_button_clicked()
+{
+    //make sure image file has been selected
+     if (filename.isEmpty()){
+         ui->warning_lineEdit->setText("File open error,please open video file first");
+         return;
+     }
+    // Create video procesor instance
+    VideoProcessor processor;
+    // Create feature tracker instance
+    LKTracker tracker;
+    // Open video file
+    processor.setInput(filename.toStdString());
+    // set frame processor
+    processor.setFrameProcessor(&tracker);
+    // Declare a window to display the video
+    processor.displayInput("Current Frame");
+    processor.displayOutput("Tracked Features");
+    // Play the video at the original frame rate
+   // processor.setDelay(1000/processor.getFrameRate());
+    processor.setDelay(1000/processor.getFrameRate());
+    processor.setDelay(30);
+    //codec value
+   // char c[4];
+   // processor.getCodec(c);
+   // std::cout<<"vodeo codec int value:"<<processor.getCodec(c)<<std::endl;
+   // std::cout<<"video codec:"<<c[0]<<c[1]<<c[2]<<c[3]<<std::endl;
+    //write output video file
+  //  if(!processor.setOutput("files/track.mkv")){
+   //     std::cout<<"open output file error"<<std::endl;
+  //      return;
+  //  }
+    // Start the process
+    processor.run();
 }

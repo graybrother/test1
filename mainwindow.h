@@ -65,6 +65,8 @@ private slots:
 
     void on_lkvb_button_clicked();
 
+    void on_lktracker_button_clicked();
+
 private:
     Ui::MainWindow *ui;
     QString filename;

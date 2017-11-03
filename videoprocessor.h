@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-#include "/vhd_opencv/opencv/include/opencv2/opencv.hpp"
+#include "opencv.hpp"
 
 // The frame processor interface
 class FrameProcessor {
@@ -151,6 +151,35 @@ class BGFGSegmentor : public FrameProcessor{
     void process(cv::Mat &,cv::Mat &);
     void setLearnRate(long);
 };
+
+class LKTracker : public FrameProcessor {
+        cv::Mat gray; // current gray-level image
+        cv::Mat gray_prev; // previous gray-level image
+        // tracked features from 0->1
+        std::vector<cv::Point2f> points[2];
+        // initial position of tracked points
+        std::vector<cv::Point2f> initial;
+        std::vector<cv::Point2f> rawpoints; // raw points to do lk
+//        int max_count; // maximum number of features to detect
+//        double qlevel; // quality level for feature detection
+//        double minDist; // min distance between two points
+        std::vector<uchar> status; // status of tracked features
+        std::vector<float> err; // error in tracking
+//        int middle[10];
+//        int objNum;
+//        cv::Rect objRect[10];
+        public:
+//        FeatureTracker() : max_count(1800),
+//            qlevel(0.02), minDist(4.0) {}
+        void process(cv::Mat &,cv::Mat &);
+        void setRawPoints();
+        bool addNewPoints();
+        bool acceptTrackedPoint(int );
+        void handleTrackedPoints(cv:: Mat &);
+        void drawOnImage(cv::Mat &,const std::vector<cv::Point2f> &);
+//        void Findobj(std::vector<cv::Point2f> & , int & );
+};
+
 
 
 #endif // VIDEOPROCESSOR_H
