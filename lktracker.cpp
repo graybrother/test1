@@ -15,6 +15,9 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
 
         cv::cvtColor(frame, gray, CV_RGB2GRAY);
         frame.copyTo(output);
+        // for first image of the sequence
+        if(gray_prev.empty())
+        gray.copyTo(gray_prev);
 
         //高斯滤波
           //      GaussianBlur( gray, gray, Size( 5, 5 ), 0, 0 );
@@ -26,6 +29,8 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
         {
         // detect feature points
         setRawPoints();
+        std::cout<<"rawpoints get="<<rawpoints.size()<<std::endl;
+
         // add the detected features to
         // the currently tracked features
         points[0].insert(points[0].end(),
@@ -33,9 +38,7 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
         initial.insert(initial.end(),
                          rawpoints.begin(),rawpoints.end());
         }
-        // for first image of the sequence
-        if(gray_prev.empty())
-        gray.copyTo(gray_prev);
+
         //test the time
         gettimeofday(&tsBegin, NULL);
 
@@ -50,7 +53,7 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
         gettimeofday(&tsEnd, NULL);//-----------------------测试时间
 
         runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
-        std::cout<<"point number"<<points[0].size()<<"time: "<<runtimes/1000<<std::endl;
+        std::cout<<"point number"<<points[0].size()<<"   time: "<<runtimes/1000<<std::endl;
 
         // 2. loop over the tracked points to reject some
         int k=0;
@@ -60,11 +63,13 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
                 // keep this point in vector
                 initial[k]= initial[i];
                 points[1][k++] = points[1][i];
+                cv::circle(output, points[1][i], 1,cv::Scalar(255,255,255),-1);
             }
         }
         // eliminate unsuccesful points
         points[1].resize(k);
         initial.resize(k);
+
         // 3. handle the accepted tracked points
         handleTrackedPoints(output);
 //        if(points[1].size()>10)
@@ -74,6 +79,7 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
         // 4. current points and image become previous ones
         std::swap(points[1], points[0]);
         cv::swap(gray_prev, gray);
+        cv::waitKey();
 }
 
 /*
@@ -101,13 +107,14 @@ void LKTracker::process(cv:: Mat &frame, cv:: Mat &output) {
 void LKTracker::setRawPoints() {
     int i,j,width,height;
     cv::Point2f p;
-    int gap=5;
+    int xgap=8;
+    int ygap=7;
     width=gray.cols;
     height=gray.rows;
 
     rawpoints.clear();
-    for (i = 0; i < width; i+=gap) {
-        for (int j = 0; j < height; j+=gap) {
+    for (i = 0; i < width; i+=xgap) {
+        for (int j = 0; j < height; j+=ygap) {
             p.x=(float)i;
             p.y=(float)j;
             rawpoints.push_back(p);
@@ -126,7 +133,7 @@ bool LKTracker::acceptTrackedPoint(int i) {
     return status[i] &&
             // if point has moved
             (fabs(points[0][i].x-points[1][i].x)+
-            fabs(points[0][i].y-points[1][i].y))>0.5
+            fabs(points[0][i].y-points[1][i].y))>1
             && (fabs(points[0][i].x-points[1][i].x)+
             fabs(points[0][i].y-points[1][i].y))<20;
 }
@@ -136,8 +143,8 @@ void LKTracker::handleTrackedPoints(cv:: Mat &output) {
         // for all tracked points
     for(int i= 0; i < points[1].size(); i++ ) {
         // draw line and circle
-        if(abs(initial[i].y-points[1][i].y)>2
-                && abs(initial[i].x-points[1][i].x)<10){
+        if(abs(initial[i].y-points[1][i].y)>3
+                && abs(initial[i].x-points[1][i].x)<30){
             cv::line(output,initial[i], points[1][i],cv::Scalar(255,255,255));
             cv::circle(output, points[1][i], 3,cv::Scalar(255,255,255),-1);
         }

@@ -467,6 +467,19 @@
      <string>LKTracker</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="student_button">
+    <property name="geometry">
+     <rect>
+      <x>510</x>
+      <y>320</y>
+      <width>191</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Student Tracking</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

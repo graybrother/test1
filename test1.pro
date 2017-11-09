@@ -24,7 +24,8 @@ SOURCES += main.cpp\
     haarcascade.cpp \
     hog-svm.cpp \
     objfeature.cpp \
-    lktracker.cpp
+    lktracker.cpp \
+    student.cpp
 
 
 HEADERS  += mainwindow.h \
@@ -33,7 +34,8 @@ HEADERS  += mainwindow.h \
     frprocess.h \
     vibe-background-sequential.h \
     hog-svm.h \
-    objfeature.h
+    objfeature.h \
+    student.h
 
 FORMS    += \
     mainwindow.ui
