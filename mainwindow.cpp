@@ -1793,8 +1793,7 @@ void MainWindow::on_student_button_clicked()
     Mat outputFrame;
 
     int keyboard = 0;           /* Input from keyboard. Used to stop the program. Enter 'q' to quit. */
-    int k;
-    int i,j,index,disToCenter;
+    int i,j,k,index;
 
     std::vector<Rect> rects;
     cv::Rect rectemp;
@@ -1803,6 +1802,86 @@ void MainWindow::on_student_button_clicked()
     int matchedNum=0;
 
     Point2f p;
+    Point2f s1Start(0,355);
+    Point2f s1End(5,359);
+    Point2f s2Start(0,327);
+    Point2f s2End(639,196);
+    Point2f s3Start(20,0);
+    Point2f s3End(639,136);
+    Point2f s4Start(0,165);
+    Point2f s4End(300,0);
+    int startX1,startX4,endX2,endX3;
+
+
+    int start[height];
+    int end[height];
+    //caclulate this lookup table;
+    float s1Alpha=(s1End.x-s1Start.x)/(s1End.y-s1Start.y);
+    float s2Alpha=(s2End.x-s2Start.x)/(s2Start.y-s2End.y);
+    float s3Alpha=(s3End.x-s3Start.x)/(s3End.y-s3Start.y);
+    float s4Alpha=(s4End.x-s4Start.x)/(s4Start.y-s4End.y);
+    for(j=0; j<height; j++)
+    {
+        //get the start x of lookup table
+        //s1
+        if(j<=s1Start.y)
+            startX1=0;
+        else
+        {
+            if(j< s1End.y)
+            {
+                startX1=s1Start.x+(j-s1Start.y)*s1Alpha;
+            }
+            else
+                startX1=width;
+        }
+        //s4
+        if(j<=s4End.y )
+            startX4=width;
+        else
+        {
+            if(j<s4Start.y)
+                startX4=s4Start.x+(s4Start.y-j)*s4Alpha;
+            else
+                startX4=0;
+        }
+
+        if(startX1>=startX4)
+            start[j]=startX1;
+        else
+            start[j]=startX4;
+        //get the end x of looktable
+        //s2
+        if(j<=s2End.y)
+            endX2=width;
+        else
+        {
+            if(j<s2Start.y)
+            {
+                endX2=s2Start.x+(s1Start.y-j)*s2Alpha;
+            }
+            else
+                endX2=0;
+        }
+        //s3
+        if(j<=s3Start.y)
+            endX3=0;
+        else
+        {
+            if(j<s3End.y)
+            {
+                endX3=s3Start.x+(j-s3Start.y)*s3Alpha;
+            }
+            else
+                endX3=width;
+        }
+
+        if(endX2<=endX3)
+            end[j]=endX2;
+        else
+            end[j]=endX3;
+
+    }//end of lookup table
 
     std::vector<cv::Point2f> rawPoints; // 粗光流
     std::vector<cv::Point2f> lkPoints;
@@ -1851,7 +1930,7 @@ void MainWindow::on_student_button_clicked()
 
     namedWindow("Tracking");
 
-    SetRawPoints(rawPoints,width,height);
+    SetRawPoints(rawPoints,width,height,start,end);
 
     while ((char)keyboard != 'q' && (char)keyboard != 27) {
       /* Read the current frame. */
@@ -1889,7 +1968,12 @@ void MainWindow::on_student_button_clicked()
       if(frame_prev.empty())
         frame.copyTo(frame_prev);
 
-     //test the time
+     //draw shield line
+      cv::line(outputFrame,s1Start,s1End,cv::Scalar(255,255,255));
+      cv::line(outputFrame,s2Start,s2End,cv::Scalar(255,255,255));
+      cv::line(outputFrame,s3Start,s3End,cv::Scalar(255,255,255));
+      cv::line(outputFrame,s4Start,s4End,cv::Scalar(255,255,255));
+      //test the time
       gettimeofday(&tsBegin, NULL);
 
       cv::calcOpticalFlowPyrLK(
@@ -2397,16 +2481,16 @@ output:
 */
      cv::swap(frame_prev, frame);
      frameNumber++;
-     keyboard = waitKey(30);
+     keyboard = waitKey();
       /* Shows  the segmentation map. */
 
 //     imshow("Tracking",inputFrame);
 //     imshow("updateMap",updateMap);
 
-//     gettimeofday(&tsEnd, NULL);//-----------------------测试时间
-//     long runtimes;
-//     runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
-//     cout<<"time: "<<runtimes/1000<<endl;
+     gettimeofday(&tsEnd, NULL);//-----------------------测试时间
+     long runtimes;
+     runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
+     cout<<"time: "<<runtimes/1000<<endl;
 
       /* Gets the input from the keyboard. */
 

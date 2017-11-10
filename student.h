@@ -39,7 +39,7 @@ typedef struct student_Feature
 }student_Feature_t;
 
 void Student_Feature_Init(student_Feature_t &);
-void SetRawPoints(std::vector<cv::Point2f> &, int, int);
+void SetRawPoints(std::vector<cv::Point2f> &, int, int, int *start, int *end);
 void SetPoints(std::vector<cv::Point2f> &, std::vector<cv::Point2f> &,cv::Rect &);
 void FindLKObj(std::vector<cv::Point2f> &, std::vector<cv::Point2f> &, int &);
 bool isMatched(cv::Rect &,cv::Rect &);

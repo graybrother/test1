@@ -26,16 +26,19 @@ void Student_Feature_Init(student_Feature_t &obj)
   return;
 }
 
-void SetRawPoints(std::vector<cv::Point2f> &rawpoints,int width,int height) {
+void SetRawPoints(std::vector<cv::Point2f> &rawpoints, int width, int height, int *start,int *end) {
     int i,j;
     cv::Point2f p;
 
     rawpoints.clear();
-    for (i = 0; i < width; i+=XGAP){
-        for (j = 0; j < height; j+=YGAP){
-            p.x=(float)i;
-            p.y=(float)j;
-            rawpoints.push_back(p);
+    for (j = 0; j < height; j+=YGAP){
+        for (i = 0; i < width; i+=XGAP){
+            if(i>=start[j] && i<end[j])
+            {
+                p.x=(float)i;
+                p.y=(float)j;
+                rawpoints.push_back(p);
+            }
         }
     }
 }
