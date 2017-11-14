@@ -12,6 +12,8 @@ void Student_Feature_Init(student_Feature_t &obj)
   obj.notmoveCount    = 0;
   obj.isCurrentObj    = false;
   obj.isStandup=false;
+  obj.standupTimeout=0;
+  obj.maxMoveTimeout=0;
 
   //
 
@@ -26,21 +28,20 @@ void Student_Feature_Init(student_Feature_t &obj)
   return;
 }
 
-void SetRawPoints(std::vector<cv::Point2f> &rawpoints, int width, int height, int *start,int *end) {
+void SetRawPoints(std::vector<cv::Point2f> &rawpoints, int width, int height, int *start,int *end)
+{
     int i,j;
     cv::Point2f p;
 
     rawpoints.clear();
     for (j = 0; j < height; j+=YGAP){
-        for (i = 0; i < width; i+=XGAP){
-            if(i>=start[j] && i<end[j])
-            {
-                p.x=(float)i;
-                p.y=(float)j;
-                rawpoints.push_back(p);
-            }
+        for (i = start[j]; i < end[j]; i+=XGAP){
+            p.x=(float)i;
+            p.y=(float)j;
+            rawpoints.push_back(p);
         }
     }
+    return;
 }
 void SetPoints(std::vector<cv::Point2f> &points, std::vector<cv::Point2f> &initial, cv::Rect &rect)
 {
@@ -62,6 +63,7 @@ void SetPoints(std::vector<cv::Point2f> &points, std::vector<cv::Point2f> &initi
             initial.push_back(p);
         }
     }
+    return;
 }
 
 void FindLKObj(std::vector<cv::Point2f> &point , std::vector<cv::Point2f> &Center,int &objNum)
@@ -69,9 +71,9 @@ void FindLKObj(std::vector<cv::Point2f> &point , std::vector<cv::Point2f> &Cente
    // int T = 10;
 
     int xxx=10;
-    int yyy=4;
+    int yyy=7;
     int xGap=64;
-    int yGap=90;
+    int yGap=50;
     int xxGap=xGap/2;
     int yyGap=yGap/2;
 
@@ -224,7 +226,7 @@ void FindLKObj(std::vector<cv::Point2f> &point , std::vector<cv::Point2f> &Cente
         //  近的类合并
         lastMiddle=-40;
         for(k=0; k<y_2_Num; k++){
-            if((ymiddle[k]-lastMiddle)<30){
+            if((ymiddle[k]-lastMiddle)<15){
                 lastMiddle=ymiddle[k];
                 ymiddle[k]=0;
             }
@@ -266,7 +268,7 @@ void FindLKObj(std::vector<cv::Point2f> &point , std::vector<cv::Point2f> &Cente
 bool isMatched(cv::Rect &rect1,cv::Rect &rect2)
 {
     cv::Rect rect=rect1 & rect2;
-    return (rect.area()> 20);
+    return (rect.area()> MATCHAREA);
 }
 
 

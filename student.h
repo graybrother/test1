@@ -7,19 +7,34 @@
 
 #include "opencv.hpp"
 
-#define YMOVE  15
+#define RAWYMOVE  0.8
+#define STANDUPTHRESHOLD 15   //y move threshold to determine a standup action
+#define STANDUPTIME 20   //time duration to detect a standup action
+#define STANDUPTIMEOUT 450  // time duration for a standup student
+#define LKPOINTS   10   //lk tracking points threshold
+#define MAXMOVETIME 8   //a time duration for a standup student to reach full standup
+
+
+
 #define MAXSTUDENTNUM   20
 #define MAXRECTNUM   10
-#define XGAP 5
-#define YGAP 5
+#define XGAP 6
+#define YGAP 6
+
+#define MATCHAREA  600
+
 typedef struct student_Feature
 {
     int objID;
     int trustedValue;
     int notmoveCount;
-    int seatPosition;  //前后分级 4级；
+    int seatPosition;  //前后分级 9级；
+    float standupThresHold;
+    float lrThreshold;
     bool isCurrentObj;
     bool isStandup;
+    int standupTimeout;
+    int maxMoveTimeout;
 
    //for correspondent Rect from vibe
    // int rectIndex;
@@ -34,8 +49,9 @@ typedef struct student_Feature
     cv::Rect rect;
  //   cv::Point2f center;
 
-    double moveX;
-    double moveY;
+    float moveX;
+    float moveY;
+    float maxMoveY;
 }student_Feature_t;
 
 void Student_Feature_Init(student_Feature_t &);

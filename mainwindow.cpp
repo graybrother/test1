@@ -1801,12 +1801,18 @@ void MainWindow::on_student_button_clicked()
     int matched[MAXRECTNUM];
     int matchedNum=0;
 
+    int pointNum=0;
+    float xmove=0;
+    float ymove=0;
+    float sumXmove=0;
+    float sumYmove=0;
+
     Point2f p;
     Point2f s1Start(0,355);
     Point2f s1End(5,359);
     Point2f s2Start(0,327);
     Point2f s2End(639,196);
-    Point2f s3Start(20,0);
+    Point2f s3Start(0,10);
     Point2f s3End(639,136);
     Point2f s4Start(0,165);
     Point2f s4End(300,0);
@@ -1820,6 +1826,7 @@ void MainWindow::on_student_button_clicked()
     float s2Alpha=(s2End.x-s2Start.x)/(s2Start.y-s2End.y);
     float s3Alpha=(s3End.x-s3Start.x)/(s3End.y-s3Start.y);
     float s4Alpha=(s4End.x-s4Start.x)/(s4Start.y-s4End.y);
+
     for(j=0; j<height; j++)
     {
         //get the start x of lookup table
@@ -1858,7 +1865,7 @@ void MainWindow::on_student_button_clicked()
         {
             if(j<s2Start.y)
             {
-                endX2=s2Start.x+(s1Start.y-j)*s2Alpha;
+                endX2=s2Start.x+(s2Start.y-j)*s2Alpha;
             }
             else
                 endX2=0;
@@ -1892,7 +1899,7 @@ void MainWindow::on_student_button_clicked()
 
     student_Feature_t student[MAXSTUDENTNUM];
 
-    float seatFactor[7]={1.4,1.2,1.1,0.8,0.6,0.4,0.3};
+    float seatFactor[7]={1.3,1.3,1.3,1.2,0.6,0.5,0.3};
     float factor;
     int objID=0;
 
@@ -1941,8 +1948,7 @@ void MainWindow::on_student_button_clicked()
           destroyAllWindows();
           return;
       }
-      //show the current frame
-      imshow("Frame", inputFrame);
+
       //get a ROI mat
  //      Mat roiframe= inputFrame(processRange);
        inputFrame.copyTo(colorFrame);
@@ -1969,12 +1975,22 @@ void MainWindow::on_student_button_clicked()
         frame.copyTo(frame_prev);
 
      //draw shield line
+      std::cout<<s1Alpha<<" "<<s2Alpha<<" "<<s3Alpha<<" "<<s4Alpha<<std::endl;
       cv::line(outputFrame,s1Start,s1End,cv::Scalar(255,255,255));
       cv::line(outputFrame,s2Start,s2End,cv::Scalar(255,255,255));
       cv::line(outputFrame,s3Start,s3End,cv::Scalar(255,255,255));
       cv::line(outputFrame,s4Start,s4End,cv::Scalar(255,255,255));
+//      for(j=0; j<height; j++)
+//      {
+//          if(start[j]<end[j])
+//              cv::line(inputFrame,Point2f(start[j],j),Point2f(end[j],j),Scalar(0,0,255));
+//      }
+      //show the current frame and shield areas
+    //  imshow("Frame", inputFrame);
       //test the time
       gettimeofday(&tsBegin, NULL);
+
+      cout<<"************************"<<endl;
 
       cv::calcOpticalFlowPyrLK(
            frame_prev, frame, // 2 consecutive images
@@ -1983,9 +1999,9 @@ void MainWindow::on_student_button_clicked()
              status, // tracking success
              err); // tracking error
 
-      int pointNum=0;
-      double xmove=0;
-      double ymove=0;
+      pointNum=0;
+      xmove=0;
+      ymove=0;
 
       for( int i= 0; i < lkPoints.size(); i++ ) {
           //  do we keep this point?
@@ -1993,12 +2009,13 @@ void MainWindow::on_student_button_clicked()
               xmove=rawPoints[i].x-lkPoints[i].x;
               ymove=rawPoints[i].y-lkPoints[i].y;
               //if points moved upwards,keep this point in vector
-              if (ymove>1){
+              if (ymove>RAWYMOVE){
                   lkPoints[pointNum++] = lkPoints[i];
                   cv::circle(outputFrame, lkPoints[i], 1,cv::Scalar(255,255,255),-1);
               }
           }
       }
+      cout<<"lk num="<<pointNum<<endl;
       lkPoints.resize(pointNum);
       objCenter.clear();
       FindLKObj(lkPoints,objCenter,rectsNum);
@@ -2051,6 +2068,7 @@ void MainWindow::on_student_button_clicked()
                   if(isMatched(student[k].rect,rects[i])){
                       matched[i]=1;
                       matchedNum++;
+                      cout<<" obj matched k="<<k<<" rect="<<i;
                   }
               }
           }
@@ -2064,31 +2082,38 @@ void MainWindow::on_student_button_clicked()
                   for(i=0; i<MAXSTUDENTNUM; i++){
                       if(student[i].trustedValue== -1)    //already mateched obj,continue
                       {
-                          student[i].seatPosition=(360-objCenter[k].y)/40;
+                          student[i].seatPosition=(height-objCenter[k].y)/40;
+                          factor=seatFactor[student[i].seatPosition];
+                          student[i].standupThresHold=factor* STANDUPTHRESHOLD;
+                          student[i].lrThreshold=student[i].standupThresHold*1.2;
                           student[i].rect=rects[k];
-                          student[i].trustedValue =20;  //a new added obj needed to confirm
+                          student[i].trustedValue =STANDUPTIME;  //a new added obj needed to confirm
                           matchedNum++;
+                          cout<<"new obj added i="<<i<<"  rect="<<k<<endl;
                           break;
                       }
                   }
               }
           }
       }
-      cout<<" matched number"<<matchedNum<<endl;
+      cout<<" matched number="<<matchedNum<<endl;
        //begin to do lk tracking
+        // 1. if new added obj, lk points must be added
 
       for(k=0; k<MAXSTUDENTNUM; k++)
       {
-        // 1. if new added obj, lk points must be added
-          if( student[k].trustedValue==20)
+          if( student[k].trustedValue==STANDUPTIME)
           {
-               SetPoints(student[k].points[0],student[k].initial,student[k].rect);
-               student[k].trackedPointNum=200;
+              SetPoints(student[k].points[0],student[k].initial,student[k].rect);
+              student[k].trackedPointNum=200;
           }
+      }
 
         // 2. do lk track for not confirmed student
-          if(student[k].trustedValue>=0 && !student[k].isStandup
-                  && student[k].trackedPointNum>2) //need to tracking
+      for(k=0; k<MAXSTUDENTNUM; k++)
+      {
+          if(student[k].trustedValue>-1 && !student[k].isStandup
+                  && student[k].trackedPointNum>=LKPOINTS) //need to tracking
           {
               cv::rectangle(colorFrame, student[k].rect, cv::Scalar(255,0,0), 2);
 
@@ -2099,11 +2124,11 @@ void MainWindow::on_student_button_clicked()
                       status, // tracking success
                       err); // tracking error
               //  a.loop over the tracked points to reject some
-              int pointNum=0;
-              float xmove=0;
-              float ymove=0;
-              float sumXmove=0;
-              float sumYmove=0;
+              pointNum=0;
+              xmove=0;
+              ymove=0;
+              sumXmove=0;
+              sumYmove=0;
               for( int i= 0; i < student[k].points[1].size(); i++ ) {
                   //  do we keep this point?
                   if(status[i]){
@@ -2113,7 +2138,7 @@ void MainWindow::on_student_button_clicked()
                       xmove=student[k].initial[i].x-student[k].points[1][i].x;
                       ymove=student[k].initial[i].y-student[k].points[1][i].y;
                       if (// if point has moved
-                              fabs(ymove)>0.5 && fabs(xmove)<20.){
+                              fabs(ymove)>0.5 && fabs(xmove)<student[k].lrThreshold){
                           //  keep this point in vector
                           student[k].initial[pointNum] = student[k].initial[i];
                           student[k].points[1][pointNum++] = student[k].points[1][i];
@@ -2124,10 +2149,11 @@ void MainWindow::on_student_button_clicked()
 
                   }
               }
-
-              if(pointNum<10)
+              cout<<"lk num="<<pointNum;
+              if(pointNum<LKPOINTS)
               {
                   Student_Feature_Init(student[k]);
+                  cout<<" not enough lkpoints delete k="<<k<<endl;
               }
               else
               {
@@ -2138,32 +2164,48 @@ void MainWindow::on_student_button_clicked()
                   student[k].moveY=sumYmove/pointNum;
                   student[k].trustedValue--;
 
-                  factor=seatFactor[student[k].seatPosition];
-                //  factor=0.4;
-                  if(student[k].moveY>factor*YMOVE)  //this student is standing up
+                  std::cout<<" k= "<<k
+                          <<" tv="<<student[k].trustedValue<<" y="<<student[k].moveY
+                         <<" x="<<student[k].moveX
+                        <<" threshold="<<student[k].standupThresHold<<std::endl;
+                  //  factor=seatFactor[student[k].seatPosition];
+                  //  factor=0.4;
+                  if(student[k].trustedValue==0 )
                   {
-                      if(student[k].trustedValue>16)
+                      Student_Feature_Init(student[k]);
+                      cout<<"up time out k="<<k<<endl;
+                      continue;
+                  }
+                  if(student[k].moveY>student[k].standupThresHold)  //this student is standing up
+                  {
+                      if(student[k].trustedValue>18)
+                          //standup too soon,not a legal student standup
                       {
                           Student_Feature_Init(student[k]);
+                          continue;
                       }
                       else
                       {
-                      student[k].isStandup=true;
-                      objNum++;
+                          student[k].isStandup=true;
+                          student[k].standupTimeout=STANDUPTIMEOUT;
+                          student[k].maxMoveTimeout=MAXMOVETIME;
+                          student[k].maxMoveY=student[k].moveY;
+                          objNum++;
+                          cout<<" a student stand up k="<<k;
                       }
                   }
-                  std::cout<<" tv="<<student[k].trustedValue<<" y="<<student[k].moveY
-                          <<" pointNum="<<pointNum<<std::endl;
+
                   std::swap(student[k].points[1], student[k].points[0]);
-                  if(student[k].trustedValue<5 && student[k].trustedValue!= -1)
-                      Student_Feature_Init(student[k]);
+
               }
-          }//end of not confirmed student
+          }
+      }//end of not confirmed student
 
           // 3. do lk track for standup student
-
+      for(k=0; k<MAXSTUDENTNUM; k++)
+      {
           if(student[k].isStandup
-                  && student[k].trackedPointNum>2) //need to tracking
+                  && student[k].trackedPointNum>=LKPOINTS) //need to tracking
           {
               cv::calcOpticalFlowPyrLK(
                           frame_prev, frame, // 2 consecutive images
@@ -2172,11 +2214,11 @@ void MainWindow::on_student_button_clicked()
                       status, // tracking success
                       err); // tracking error
               //  a.loop over the tracked points to reject some
-              int pointNum=0;
-              float xmove=0;
-              float ymove=0;
-              float sumXmove=0;
-              float sumYmove=0;
+              pointNum=0;
+              xmove=0;
+              ymove=0;
+              sumXmove=0;
+              sumYmove=0;
               for( int i= 0; i < student[k].points[1].size(); i++ ) {
                   //  do we keep this point?
                   if(status[i]){
@@ -2192,7 +2234,7 @@ void MainWindow::on_student_button_clicked()
                   }
 
               }
-              if(pointNum<1)
+              if(pointNum<LKPOINTS)
               {
                   Student_Feature_Init(student[k]);
                   objNum--;
@@ -2204,21 +2246,62 @@ void MainWindow::on_student_button_clicked()
                   student[k].trackedPointNum=pointNum;
                   student[k].moveX=sumXmove/pointNum;
                   student[k].moveY=sumYmove/pointNum;
-                  factor=seatFactor[student[k].seatPosition];
-                  if(student[k].moveY<4)  //this student has sit down
+                  student[k].standupTimeout--;
+                  student[k].maxMoveTimeout--;
+                  if(student[k].maxMoveTimeout>0)
                   {
-                      Student_Feature_Init(student[k]);
-                      objNum--;
-                      std::cout<<"sit down"<<std::endl;
+                      if(student[k].maxMoveY<student[k].moveY)
+                          student[k].maxMoveY=student[k].moveY;
                   }
-                  std::cout<<" tv="<<student[k].trustedValue<<" y="<<student[k].moveY
-                          <<" pointNum="<<pointNum<<std::endl;
+
+                  std::cout<<" timeout="<<student[k].standupTimeout<<" y="<<student[k].moveY
+                          <<"  x="<<student[k].moveX
+                         <<"  maxmove="<<student[k].maxMoveY
+                        <<" pointNum="<<pointNum<<std::endl;
                   std::swap(student[k].points[1], student[k].points[0]);
               }
+          }
+      }//end of do lk truacking for standup student
 
-          }   //end of  standup student
+//策略
+      for(k=0; k<MAXSTUDENTNUM; k++)
+      {
+          //standup timeout reached,remove this standup student
+          if(student[k].isStandup && student[k].standupTimeout==0)
+          {
+              Student_Feature_Init(student[k]);
+              objNum--;
+              continue;
+          }
 
-        }  //end of do lk truacking for all obj
+          // student has sit down
+          if(student[k].isStandup
+                  && student[k].moveY<(student[k].maxMoveY-student[k].standupThresHold/2))
+          {
+              Student_Feature_Init(student[k]);
+              objNum--;
+              continue;
+          }
+
+          //student walk upwards, remove this student;
+          if(student[k].isStandup
+                  && student[k].moveY>(student[k].maxMoveY+student[k].standupThresHold))
+          {
+              Student_Feature_Init(student[k]);
+              objNum--;
+              continue;
+          }
+
+          //student walk left or right, remove this student;
+          if(student[k].isStandup
+                  && fabs(student[k].moveX)>student[k].lrThreshold)
+          {
+              Student_Feature_Init(student[k]);
+              objNum--;
+              continue;
+          }
+
+      }
 
       for(k=0; k<MAXSTUDENTNUM; k++)
       {
@@ -2231,275 +2314,15 @@ void MainWindow::on_student_button_clicked()
 
 
 
-/*
-//       策略，
-     //treat tracking status of lk
-     for(k=0; k<MAXOBJNUM; k++){
-         if(objFeature[k].rectIndex>=0
-                 && objFeature[k].trustedValue>=0){
-             if(objFeature[k].trackedPointNum>5){   //tracking ok
-                 if(objFeature[k].trustedValue<4){  //待定目标
-                     objFeature[k].trustedValue+=1;
-                     if(objFeature[k].trustedValue==4){
-                         objFeature[k].notmoveCount=900;
-                         objNum+=1;
-                         cout<<"a object comfirmed index="<<k<<endl;
-                     }
-
-                 }    //end of 待定目标
-                 else{
-                     objFeature[k].notmoveCount=900;
-                 }
-
-             }  //end of tracking ok
-             else{                                  //tracking not ok
-                 if(objFeature[k].trustedValue<4){      //待定目标
-                     objFeature[k].trustedValue-=1;
-                 }
-                 else{                                  //目标
-                     objFeature[k].notmoveCount-=1;
-                     if(objFeature[k].notmoveCount==0){
-                         objNum-=1;
-                         if(objNum<0)
-                             objNum=0;
-                         if(objFeature[k].isCurrentObj)
-                             currentID=-1;
-                         object_Feature_Init(objFeature[k]);
-                         cout<<"no move timeout,a object removed"<<endl;
-                     }
-                 }
-             }    //end of tracking not ok
-         }  //end of first if
-     }  //end of for(k=0
-     //treat condition that there is a rect join accured
-     if(objNum>0 && currentID>=0 ){
-        for(k=0; k<MAXOBJNUM; k++){
-             if(k==currentID)
-                 continue;
-             //obj join happend
-             if(objFeature[k].rectIndex>-1  //9.20  trustedValue==4
-                    && objFeature[k].rectIndex==objFeature[currentID].rectIndex){
-                 if(objJointed==0){
-                     objJointed+=1;
-                     jointedIndex=k;
-                     currentDirection=objFeature[currentID].moveX;
-                     jointedDirection=objFeature[jointedIndex].moveX;
-                     cout<<"two rect jointed"<<currentID<<"  to "<<k<<endl;
-
-                     break;
-                 }
-                 else
-                     objJointed+=1;
-                 ui->warning_lineEdit->setText("jointed status");
-                 cout<<"jointed count  "<<objJointed<<endl;
-              }
-        }
-      }
-    //9.20
-     if(objNum>1 && currentID>=0 && objJointed>200
-             && objFeature[jointedIndex].trustedValue==4){
-   //  if(objNum>1 && currentID>=0 && objJointed>300
-   //              && objFeature[jointedIndex].rectIndex>-1){
-         //jointed so long,may be a dimatched obj,remove it
-
-         object_Feature_Init(objFeature[jointedIndex]);
-         objJointed=0;
-         jointedIndex=-1;
-         objNum-=1;
-         ui->warning_lineEdit->setText("timeout,remove ajointed obj");
-     }
-     //treat condition that jointed rect split
-     if(objNum>1 && currentID>=0 && objJointed>=1 && objSplited==1){
-         if(objFeature[currentID].rectIndex
-                 !=objFeature[jointedIndex].rectIndex){
-           //rect splited
-             objJointed=0;
-             objSplited=0;
-             cout<<"rect split, choose  "<<currentDirection<<"  "<<jointedDirection;
-             cout<<"  "<<objFeature[currentID].objMvX[objFeature[currentID].mvIndex];
-             cout<<"   "<<objFeature[jointedIndex].objMvX[objFeature[jointedIndex].mvIndex];
-             cout<<"    "<<endl;
-
-             index=currentDirection
-                     * objFeature[currentID].objMvX[objFeature[currentID].mvIndex];
-             if(objFeature[jointedIndex].trustedValue==4
-                     && objFeature[jointedIndex].objMvX[objFeature[jointedIndex].mvIndex]!=0
-                     && index<=0){
-                 //not the same direction, exchange currentobj and joined obj
-                 objFeature[currentID].isCurrentObj= false;
-                 currentID= jointedIndex;
-                 objFeature[currentID].isCurrentObj= true;
-
-             }
-             jointedIndex=-1;
-             ui->warning_lineEdit->setText("jointed obj splited");
-         }
-     }
-
-   //选取currentobj 输出x,y and objNum
-     disToCenter= CENTERx;
-     index= -1;
-     cout<<"result output ";
-     if(objNum>0){              //there is at least one obj
-         //there is no current obj, choose one
-         if(currentID<0){
-             for(k=0; k<MAXOBJNUM; k++){
-                 if(objFeature[k].trustedValue==4){     //is a confirmed obj
-                     i=abs(objFeature[k].center.x-CENTERx);
-                     if(i < disToCenter){   //obj near to center
-                     disToCenter=i;
-                     index=k;
-                    }
-                 }
-             }
-             currentID=index;
-             objFeature[index].isCurrentObj=true;
-         }  //end if currentID<0
-         //if there are at least one ScreenRange
-         if(haveScreenRange){
-             //check if currentObj in screenrange
-             if(isMatchedRect(screenRange,objFeature[currentID].rect)){
-                 inScreenRange=true;
-                 // there are other obj, set it to currentobj
-                 if(objNum>1){
-                     index=-1;
-                     disToCenter=CENTERx;
-                     //there have some confirmed obj not in screenrange
-                     for(k=0; k<MAXOBJNUM; k++){
-                         if(k!=currentID
-                               && objFeature[k].trustedValue==4
-                               && !isMatchedRect(screenRange,objFeature[k].rect)){
-                             i=abs(objFeature[k].center.x-CENTERx);
-                             if(i < disToCenter){   //obj near to center
-                             disToCenter=i;
-                             index=k;
-                            }
-                         }
-                     }
-                     if(index>-1){
-                         objFeature[currentID].isCurrentObj=false;
-                         currentID=index;
-                         objFeature[currentID].isCurrentObj=true;
-                         inScreenRange=false;
-                     }
-
-                 } //end of have other obj not in screen
-              } //end of if current obj in screen
-            // current obj not in screen
-             else{
-                 inScreenRange=false;
-             }
-         }  //end of have screenrange
-     }   //end of have obj
-
-     //output
-output:
-     if(currentID>-1){
-         outputRect=objFeature[currentID].rect;
-         outputRect.x+=left;
-         outputRect.y+=top;
-         outputTimeout=objFeature[currentID].notmoveCount;
-     }
-
-     cv::rectangle(inputFrame, outputRect,
-                        cv::Scalar(0, 0, 255), 4);
-     cout<<"currentid "<<currentID<<"  timeout="<<outputTimeout;
-     cout<<"  object number="<<objNum;
-     cout<<"  inScreenRange="<<inScreenRange;
-     cout<<"  Jointed status  "<<objJointed<<"----------end"<<endl;
-     //remove 9.21
-/*         else{                      //no obj,choose one from not confirmed obj
-                                //to give out a temp result
-         index=-1;
-         disToCenter=CENTERx;
-         for(k=0; k<MAXOBJNUM; k++){
-             if(objFeature[k].trustedValue>=0){     //is a not confirmed obj
-                 i=abs(objFeature[k].center.x-CENTERx);
-                 if(i < disToCenter){   //obj near to center
-                     disToCenter=i;
-                     index=k;
-                }
-             }
-         }
-         if(index>=0){          //there is a not confirmed obj
-           //  currentID=index;
-           //  objFeature[currentID].isCurrentObj=true;
-           //  objNum++;
-             cv::rectangle(inputFrame, objFeature[index].rect,
-                                cv::Scalar(255, 0, 0), 4);
-          //   cout<<"currentid "<<currentID<<"  timeout="<<objFeature[currentID].notmoveCount;
-             cout<<"  no object,a temp resultr "<<"----------end"<<endl;
-         }
-         else{              //realy no obj(both confirmed or not confirmed
-             cv::rectangle(inputFrame, Rect(CENTERx-25,30,50,100),
-                                cv::Scalar(0, 255, 0), 4);
-             cout<<"no object "<<endl;
-
-            }
-     }       //end of no obj
-
-
-     //init all where are some errors
-     if(objNum>0)
-         noObjCount=0;
-     if(objNum==0){
-         noObjCount+=1;
-         if(noObjCount>5){
-             objNum=     0;
-             currentID=  -1;
-             objJointed=0;
-             objSplited=0;
-             jointedIndex=-1;
-             currentDirection=-1;
-             jointedDirection=-1;
-             noObjCount=0;
-
-         }
-     }
-     //reach MAXOBJNUM,to many obj,remove them except currentobj
-     if(objNum==MAXOBJNUM && currentID>-1){
-         for(k=0; k<MAXOBJNUM; k++){
-             if(!objFeature[k].isCurrentObj){
-                 object_Feature_Init(objFeature[k]);
-             }
-         }
-         objNum=1;
-     }
-    //set mask of current object to COLOR_CURRENTOBJ
-    if(currentID>=0){
-        for(i=0; i<objFeature[currentID].rect.height; i++){
-            index=(i+objFeature[currentID].rect.y)* updateMap.cols;
-            for(j=0; j<objFeature[currentID].rect.width; j++){
-                segTemp=updateMap.data+index
-                        +objFeature[currentID].rect.x+j;
-                if(*segTemp==COLOR_FOREGROUND)
-                    *segTemp=COLOR_CURRENTOBJ;
-            }
-        }
-     }
-
-*/
-     cv::swap(frame_prev, frame);
-     frameNumber++;
-     keyboard = waitKey();
-      /* Shows  the segmentation map. */
-
-//     imshow("Tracking",inputFrame);
-//     imshow("updateMap",updateMap);
 
      gettimeofday(&tsEnd, NULL);//-----------------------测试时间
      long runtimes;
      runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
      cout<<"time: "<<runtimes/1000<<endl;
 
-      /* Gets the input from the keyboard. */
-
-//       if ((frameNumber % 100)==0){
-//           libvibeModel_Sequential_PrintParameters(model);
-//           cout<<"Max rectangle: width"<< maxrect.width
-//                        <<" height"<< maxrect.height<<endl;
-//      }
-//     waitKey();
+     cv::swap(frame_prev, frame);
+     frameNumber++;
+     keyboard = waitKey(30);
 
     } //end of while
 
