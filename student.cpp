@@ -71,10 +71,11 @@ void FindLKObj(std::vector<cv::Point2f> &point , std::vector<cv::Point2f> &Cente
    // int T = 10;
 
     int xxx=10;
-    int yyy=7;
+    int yyy=6;
     int xGap=64;
-    int yGap=50;
-    int xxGap=xGap/2;
+    int yGap=60;
+    //int xxGap=xGap/2;
+    int xxGap=20;
     int yyGap=yGap/2;
 
     int round_1_Num=0;

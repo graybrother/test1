@@ -7,13 +7,13 @@
 
 #include "opencv.hpp"
 
-#define RAWYMOVE  0.8
+#define RAWYMOVE  0.7
 #define STANDUPTHRESHOLD 15   //y move threshold to determine a standup action
 #define STANDUPTIME 20   //time duration to detect a standup action
 #define STANDUPTIMEOUT 450  // time duration for a standup student
 #define LKPOINTS   10   //lk tracking points threshold
 #define MAXMOVETIME 8   //a time duration for a standup student to reach full standup
-
+#define TOOFAST  5
 
 
 #define MAXSTUDENTNUM   20

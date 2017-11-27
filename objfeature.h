@@ -8,9 +8,13 @@
 
 #include "opencv.hpp"
 
-#define TrustThres  3
-#define MAXOBJNUM   4
+#define TrustThres  4
+#define MAXOBJNUM   5
 #define MOVENUM     10
+#define LEASTLKPOINTS  20
+#define TRACKTIMES 10
+#define NOMATCHINDEX 100
+#define NOMATCHTIMES 100
 
 typedef struct object_Feature
 {
@@ -18,16 +22,23 @@ typedef struct object_Feature
     int trustedValue;
     int notmoveCount;
     bool isCurrentObj;
+    int noMatch;
 
    //for correspondent Rect from vibe
     int rectIndex;
+    int screenIndex;  //overlap with a screenRange, -1 not overlaped
     //points for mediantrack
     std::vector<cv::Point2f> points[2];
+    std::vector<cv::Point2f> initial;
 
     //data of tracking result
     int trackedPointNum;
+    int lkMatchedNum;
+
     cv::Rect rect;
     cv::Point2f center;
+    cv::Rect lkRect;
+    int trackTimes;
     int mvIndex;
     double objMvX[MOVENUM];
     double objMvY[MOVENUM];
@@ -37,6 +48,7 @@ typedef struct object_Feature
 
 void object_Feature_Init(object_Feature_t &);
 bool isMatchedRect(cv::Rect &,cv::Rect &);
+bool isMatchedRect600(cv::Rect &,cv::Rect &);
 bool isSameRect(cv::Rect &,cv::Rect &);
 cv::Rect getRect(std::vector<cv::Point2f> &);
 void BubbleSort(std::vector<cv::Rect> &, int );

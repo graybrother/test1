@@ -13,9 +13,11 @@ void object_Feature_Init(object_Feature_t &obj)
   obj.trustedValue       = -1;
   obj.notmoveCount    = 0;
   obj.isCurrentObj    = false;
+  obj.noMatch         =-1;
 
   //
   obj.rectIndex          = -1;
+  obj.screenIndex      = -1;
  //
   obj.center=cv::Point2f(0,0);
   obj.rect=cv::Rect(0,0,0,0);
@@ -36,6 +38,13 @@ bool isMatchedRect(cv::Rect &rect1,cv::Rect &rect2)
     cv::Rect rect=rect1 & rect2;
   //  std::cout<<"rect"<<rect.x<<" "<<rect.y<<" "<<rect.area()<<std::endl;
     return (rect.area()> 50);
+}
+
+bool isMatchedRect600(cv::Rect &rect1,cv::Rect &rect2)
+{
+    cv::Rect rect=rect1 & rect2;
+  //  std::cout<<"rect"<<rect.x<<" "<<rect.y<<" "<<rect.area()<<std::endl;
+    return (rect.area()> 300);
 }
 
 bool isSameRect(cv::Rect &rect,cv::Rect &screenRange)

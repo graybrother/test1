@@ -69,6 +69,8 @@ private slots:
 
     void on_student_button_clicked();
 
+    void on_ipcamera_button_clicked();
+
 private:
     Ui::MainWindow *ui;
     QString filename;
@@ -79,5 +81,6 @@ private:
 
 void on_trackbar( int, void* );
 int ffilldemo();
+void getHistImg(const MatND& ,Mat& );
 
 #endif // MAINWINDOW_H

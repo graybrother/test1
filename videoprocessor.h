@@ -131,8 +131,8 @@ class HaarCascadeTracker : public FrameProcessor {
         cv::Size maxSize;
 
         public:
-        HaarCascadeTracker() : minSize(cv::Size(6,6)),
-            maxSize(cv::Size(64,64)) {}
+        HaarCascadeTracker() : minSize(cv::Size(20,20)),
+            maxSize(cv::Size(100,100)) {}
         void process(cv::Mat &,cv::Mat &);
   //      bool setCascader(std::string );
  //       void handleTrackedRec(cv:: Mat &,cv:: Mat &);

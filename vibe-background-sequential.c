@@ -50,7 +50,8 @@ static inline int abs_uint(const int i)
 
 static inline int32_t distance_is_close_8u_C3R(uint8_t r1, uint8_t g1, uint8_t b1, uint8_t r2, uint8_t g2, uint8_t b2, uint32_t threshold)
 {
-  return (abs_uint(r1 - r2) + abs_uint(g1 - g2) + abs_uint(b1 - b2) <= 4.5 * threshold);
+  //return (abs_uint(r1 - r2) + abs_uint(g1 - g2) + abs_uint(b1 - b2) <= 4.5 * threshold);
+   return (abs_uint(r1 - r2) + abs_uint(g1 - g2) + abs_uint(b1 - b2) <= 3 * threshold);
 }
 
 struct vibeModel_Sequential
@@ -106,9 +107,9 @@ vibeModel_Sequential_t *libvibeModel_Sequential_New()
 
   /* Default parameters values. */
   model->numberOfSamples         = 20;
-  model->matchingThreshold       = 15;
+  model->matchingThreshold       = 7;
   model->matchingNumber          = 2;
-  model->updateFactor            = 2;
+  model->updateFactor            = 5;
 
   /* Storage for the history. */
   model->historyImage            = NULL;
