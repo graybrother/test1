@@ -11,6 +11,7 @@ void object_Feature_Init(object_Feature_t &obj)
 
   /* Default parameters values. */
   obj.trustedValue       = -1;
+  obj.trustCount      =0;
   obj.notmoveCount    = 0;
   obj.isCurrentObj    = false;
   obj.noMatch         =-1;
@@ -19,7 +20,7 @@ void object_Feature_Init(object_Feature_t &obj)
   obj.rectIndex          = -1;
   obj.screenIndex      = -1;
  //
-  obj.center=cv::Point2f(0,0);
+ // obj.center=cv::Point2f(0,0);
   obj.rect=cv::Rect(0,0,0,0);
   obj.mvIndex=0;
   memset(obj.objMvX,0,sizeof(obj.objMvX));
@@ -37,15 +38,23 @@ bool isMatchedRect(cv::Rect &rect1,cv::Rect &rect2)
 {
     cv::Rect rect=rect1 & rect2;
   //  std::cout<<"rect"<<rect.x<<" "<<rect.y<<" "<<rect.area()<<std::endl;
-    return (rect.area()> 50);
+    return (rect.area()> 200);
 }
 
-bool isMatchedRect600(cv::Rect &rect1,cv::Rect &rect2)
+bool isMatchedRectLK(cv::Rect &lkrect,cv::Rect &vbrect)
 {
-    cv::Rect rect=rect1 & rect2;
+    cv::Rect rect=lkrect & vbrect;
   //  std::cout<<"rect"<<rect.x<<" "<<rect.y<<" "<<rect.area()<<std::endl;
-    return (rect.area()> 300);
+    return (rect.area()>= lkrect.area()/3);
 }
+
+bool isMatchedNotMove(cv::Rect &notMoveRect,cv::Rect &vbrect)
+{
+    cv::Rect rect=notMoveRect & vbrect;
+  //  std::cout<<"rect"<<rect.x<<" "<<rect.y<<" "<<rect.area()<<std::endl;
+    return (rect.area()>= notMoveRect.area()/2);
+}
+
 
 bool isSameRect(cv::Rect &rect,cv::Rect &screenRange)
 {

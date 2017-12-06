@@ -8,18 +8,21 @@
 
 #include "opencv.hpp"
 
-#define TrustThres  4
+#define TRUSTTHRES  4
 #define MAXOBJNUM   5
-#define MOVENUM     10
+#define MOVENUM     6
 #define LEASTLKPOINTS  20
-#define TRACKTIMES 10
-#define NOMATCHINDEX 100
+#define LEASTMOVE  0.2
+#define LEASTTRACKPOINTS 10
+#define NOMATCHINDEX 50
 #define NOMATCHTIMES 100
+#define MAXTRUSTTIMES  20
 
 typedef struct object_Feature
 {
     int objID;
     int trustedValue;
+    int trustCount;
     int notmoveCount;
     bool isCurrentObj;
     int noMatch;
@@ -36,9 +39,9 @@ typedef struct object_Feature
     int lkMatchedNum;
 
     cv::Rect rect;
-    cv::Point2f center;
+    cv::Rect initialRect;
+   // cv::Point2f center;
     cv::Rect lkRect;
-    int trackTimes;
     int mvIndex;
     double objMvX[MOVENUM];
     double objMvY[MOVENUM];
@@ -48,7 +51,8 @@ typedef struct object_Feature
 
 void object_Feature_Init(object_Feature_t &);
 bool isMatchedRect(cv::Rect &,cv::Rect &);
-bool isMatchedRect600(cv::Rect &,cv::Rect &);
+bool isMatchedRectLK(cv::Rect &,cv::Rect &);
+bool isMatchedNotMove(cv::Rect &,cv::Rect &);
 bool isSameRect(cv::Rect &,cv::Rect &);
 cv::Rect getRect(std::vector<cv::Point2f> &);
 void BubbleSort(std::vector<cv::Rect> &, int );

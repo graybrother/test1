@@ -519,6 +519,19 @@
      <string>Input IP address here:</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="test_button">
+    <property name="geometry">
+     <rect>
+      <x>830</x>
+      <y>460</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>test</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">

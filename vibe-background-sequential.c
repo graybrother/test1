@@ -107,7 +107,7 @@ vibeModel_Sequential_t *libvibeModel_Sequential_New()
 
   /* Default parameters values. */
   model->numberOfSamples         = 20;
-  model->matchingThreshold       = 7;
+  model->matchingThreshold       = 8;
   model->matchingNumber          = 2;
   model->updateFactor            = 5;
 
@@ -318,7 +318,8 @@ int32_t libvibeModel_Sequential_Segmentation_8u_C1R(
   /* First history Image structure. */
   //
   int index;
-  for (index = width * height - 1; index >= 0; --index) {
+  int imgsize=width * height;
+  for (index = imgsize - 1; index >= 0; --index) {
     if (abs_uint(image_data[index] - historyImage[index]) > matchingThreshold)
       segmentation_map[index] = matchingNumber;
   }
@@ -326,9 +327,9 @@ int32_t libvibeModel_Sequential_Segmentation_8u_C1R(
   /* Next historyImages. */
   int i;
   for (i = 1; i < NUMBER_OF_HISTORY_IMAGES; ++i) {
-    uint8_t *pels = historyImage + i * width * height;
+    uint8_t *pels = historyImage + i * imgsize;
 
-    for (index = width * height - 1; index >= 0; --index) {
+    for (index = imgsize - 1; index >= 0; --index) {
       if (abs_uint(image_data[index] - pels[index]) <= matchingThreshold)
         --segmentation_map[index];
     }
@@ -336,12 +337,12 @@ int32_t libvibeModel_Sequential_Segmentation_8u_C1R(
 
   /* For swapping. */
   model->lastHistoryImageSwapped = (model->lastHistoryImageSwapped + 1) % NUMBER_OF_HISTORY_IMAGES;
-  uint8_t *swappingImageBuffer = historyImage + (model->lastHistoryImageSwapped) * width * height;
+  uint8_t *swappingImageBuffer = historyImage + (model->lastHistoryImageSwapped) * imgsize;
 
   /* Now, we move in the buffer and leave the historyImages. */
   int numberOfTests = (model->numberOfSamples - NUMBER_OF_HISTORY_IMAGES);
 
-  for (index = width * height - 1; index >= 0; --index) {
+  for (index = imgsize - 1; index >= 0; --index) {
     if (segmentation_map[index] > 0) {
       /* We need to check the full border and swap values with the first or second historyImage.
        * We still need to find a match before we can stop our search.
@@ -368,7 +369,7 @@ int32_t libvibeModel_Sequential_Segmentation_8u_C1R(
   /* Produces the output. Note that this step is application-dependent. */
   //define for for loop
   uint8_t *mask;
-  for (mask = segmentation_map; mask < segmentation_map + (width * height); ++mask)
+  for (mask = segmentation_map; mask < segmentation_map + imgsize; ++mask)
     if (*mask > 0) *mask = COLOR_FOREGROUND;
 
   return(0);

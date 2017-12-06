@@ -71,6 +71,8 @@ private slots:
 
     void on_ipcamera_button_clicked();
 
+    void on_test_button_clicked();
+
 private:
     Ui::MainWindow *ui;
     QString filename;

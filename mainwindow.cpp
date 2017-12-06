@@ -351,7 +351,7 @@ void MainWindow::on_vibe_button_clicked()
           ++frameNumber;
 
           /* Gets the input from the keyboard. */
-          keyboard = waitKey(1);
+          keyboard = waitKey(30);
         }
 
         /* Delete capture object. */
@@ -1038,23 +1038,24 @@ void MainWindow::on_equa_button_clicked()
 
 void MainWindow::on_lkvb_button_clicked()
 {
-   //     int TrustThres= 3;
-   //     int maxObjNum=  4;
+
         using namespace std;
 
-        int left=20;
-        int top=100;
-        int width=620;
-        int height=90;
+        int left=60;
+        int top=70;
+        int width=520;
+        int height=100;
         int CENTERx=width/2;
         int CENTERy=height/2;
+        int outputCenterx=left+width/2;
+        int outputCentery=top+height/2;
         Rect processRange(left,top,width,height);
 
-        bool haveScreenRange=true;
-        int screenLeft=220-left;
-        int screenTop=100-top;
-        int screenWidth=130;
-        int screenHeight=70;
+        bool haveScreenRange=false;
+        int screenLeft=324-left;
+        int screenTop=70-top;
+        int screenWidth=100;
+        int screenHeight=80;
         Rect screenRange(screenLeft,screenTop,screenWidth,screenHeight);
 
 
@@ -1071,16 +1072,24 @@ void MainWindow::on_lkvb_button_clicked()
         Mat element(5,5,CV_8U,cv::Scalar(1));
 
         vector<vector<Point> > contours;
-        vector<Rect> rects;
         vector<Rect> recNoSort;
+        vector<Rect> rects;
+        int rectsNum=0;
+        vector<Rect> notMoveRect;
+        notMoveRect.clear();
+        int notMoveRectNum=0;
+
+
 
         Rect rectemp;
         Rect recpre;
+        Rect vbtemp;
 
  //       Rect maxrect;
-        int rectsNum=0;
+
 
         Point2f p;
+        Point2f centerPoint;
         uint8_t *segTemp;
 
         int matched[MAXOBJNUM];
@@ -1096,6 +1105,7 @@ void MainWindow::on_lkvb_button_clicked()
         object_Feature_t objFeature[MAXOBJNUM];
        // object_Feature_t* objTemp;
         int matchedNum= 0;
+        int vbNum=0;
         int objNum=     0;
         int currentID=  -1;
         int objJointed=0;
@@ -1106,15 +1116,25 @@ void MainWindow::on_lkvb_button_clicked()
         int noObjCount=0;
         bool haveMatchedRect=false;
 
+        int pointNum=0;
+        int moveNum=0;
+        double xmove=0;
+        double ymove=0;
+        double sumXmove=0;
+        double sumYmove=0;
+        double meanMove=0;
+
         int lkLeft,lkRight,lkTop,lkBottom;
+        int candoLK;
 
         // output parameters
-        Rect outputRect(left+CENTERx-20,top+CENTERy-20,40,40);
+        Rect outputRect(outputCenterx-20,outputCentery-30,40,60);
         int  outputTimeout=0;
         bool inScreenRange=false;
 
         //-----------------------测试时间
         struct timeval tsBegin,tsEnd;
+        long runtimes;
 
 
         for(i=0; i< MAXOBJNUM; i++) {
@@ -1168,6 +1188,8 @@ void MainWindow::on_lkvb_button_clicked()
        //   imshow("Frame", inputFrame);
           //convert to gray
           cvtColor(colorFrame, frame, CV_BGR2GRAY);
+          if(haveScreenRange)
+              rectangle(frame, screenRange, cv::Scalar(255), 4);
           imshow("Gray",frame);
 
         // Applying ViBe.
@@ -1179,14 +1201,14 @@ void MainWindow::on_lkvb_button_clicked()
 
           /* ViBe: Segmentation and updating. */
           //give some time for background building
-          if (frameNumber < 400){
+          if (frameNumber < 20){
             libvibeModel_Sequential_Segmentation_8u_C1R(model, frame.data, segmentationMap.data);
             libvibeModel_Sequential_Update_8u_C1R(model, frame.data, segmentationMap.data);
             ++frameNumber;
             continue;
           }
           if(frameNumber>10000000)
-              frameNumber=500;
+              frameNumber=100;
           ++frameNumber;
 
           // for first image of the sequence
@@ -1199,6 +1221,11 @@ void MainWindow::on_lkvb_button_clicked()
           // ViBe: Segmentation
 
           libvibeModel_Sequential_Segmentation_8u_C1R(model, frame.data, segmentationMap.data);
+
+          gettimeofday(&tsEnd, NULL);//-----------------------测试时间
+
+          runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
+          cout<<" vibe segmentation time: "<<runtimes<<endl;
 
           imshow("Segmentation by ViBe",segmentationMap);
           segmentationMap.copyTo(updateMap);
@@ -1230,8 +1257,8 @@ void MainWindow::on_lkvb_button_clicked()
              //rect is the same of screenrange,let it go
     //         if(haveScreenRange && isSameRect(rectemp,screenRange))
     //             continue;
-             if(rectemp.area()>500 && rectemp.area()<50000
-                     && rectemp.width>10 && rectemp.height>15
+             if(rectemp.area()>300 && rectemp.area()<50000
+                     && rectemp.width>10 && rectemp.height>10
                      && rectemp.width<300 && rectemp.height<155){
 
                   recNoSort.push_back(rectemp);
@@ -1271,7 +1298,8 @@ void MainWindow::on_lkvb_button_clicked()
               i=1;
               for(k=1; k<rectsNum; k++){
                   rectemp=recNoSort[k];
-                  if(abs(rectemp.x+rectemp.width/2-recpre.x-recpre.width/2)<20){
+                  //all in
+                  if((rectemp.x+rectemp.width)<=(recpre.x+recpre.width)){
                       // some rect splited to up and down two parts
                       // just joint them together
                       rectemp=rectemp | recpre;
@@ -1281,7 +1309,26 @@ void MainWindow::on_lkvb_button_clicked()
                       cout<<"rect joined "<<recpre.x<<"   "<<rectemp.x<<endl;
 
                   }
-                  else{
+                  else if((rectemp.x+rectemp.width/2)< (recpre.x+recpre.width-rectemp.width/4))
+                  {
+                      rectemp=rectemp | recpre;
+                      rects.pop_back();
+                      rects.push_back(rectemp);
+                      recpre=rectemp;
+                      cout<<"rect joined "<<recpre.x<<"   "<<rectemp.x<<endl;
+
+                  }
+                  else if((recpre.x+recpre.width/2)> (rectemp.x+recpre.width/4))
+                  {
+                      rectemp=rectemp | recpre;
+                      rects.pop_back();
+                      rects.push_back(rectemp);
+                      recpre=rectemp;
+                      cout<<"rect joined "<<recpre.x<<"   "<<rectemp.x<<endl;
+
+                  }
+                  else
+                  {
                       rects.push_back(rectemp);
                       recpre=rectemp;
                       i++;
@@ -1296,30 +1343,43 @@ void MainWindow::on_lkvb_button_clicked()
           }
           imshow("Afterdilate", segmentationMap);
 
-     //     cv::rectangle(segmentationMap,Rect(10,10,30,30),cv::Scalar(255, 255, 255), 2);
-    //      cvtColor(segmentationMap,output,CV_GRAY2RGB);
-
-          if(rectsNum>MAXOBJNUM)
+         if(rectsNum>MAXOBJNUM)
               rectsNum=MAXOBJNUM;
 
- //         waitKey();
+/*aaa*/  //detect if not move rect still there
+         pointNum=0;
+         for(i=0; i<notMoveRectNum; i++)
+         {
+            for(k=0; k<rectsNum; k++)
+             {
+                 if(isMatchedNotMove(notMoveRect[i],rects[k]))
+                 {
+                     notMoveRect[pointNum]=notMoveRect[i];
+                     pointNum++;
+                 }
+             }
+         }
+         notMoveRectNum=pointNum;
+
           //match already matched objFeture to rects
           matchedNum=0;
-          for(i=0;i<MAXOBJNUM; i++)
+          for(k=0;k<rectsNum; k++)
           {
-              matched[i]=0;
+              matched[k]=0;
           }
-          //first to match the currentobj
+          //1.first to match the currentobj
           haveMatchedRect=false;
           if(currentID>-1){
               for(k=0; k<rectsNum; k++)
               {
-                  if(isMatchedRect(objFeature[currentID].rect,rects[k]))
+                  if(isMatchedRectLK(objFeature[currentID].lkRect,rects[k]))
                     {
                         objFeature[currentID].rectIndex=k;
+                        // set after process join & split condition
+                        //  objFeature[currentID].rect=rects[k];
                         objFeature[currentID].noMatch=-1;
-                        if(objNum<2)
-                            matched[k]=1;
+//                        if(vbNum<2)
+//                            matched[k]=1;
                         matchedNum++;
                         haveMatchedRect=true;
                         cout<<"a currentobj matched  id= "<<currentID<<"  k= "<<k;
@@ -1340,442 +1400,643 @@ void MainWindow::on_lkvb_button_clicked()
               }
           }    //end of match currentobj
 
+          //2. if there are obj jointed or splited
           index=0;
-          if(objJointed>0){
-              //if obj[jointedIndex] can match two rects
-              //do not match currentobj rect again
+           //a. already joined
+          if(currentID>-1 && objJointed>0)
+          {
+
+              // currentObj to match as many rect as possible
               for(k=0; k<rectsNum; k++){
-                 if(isMatchedRect(objFeature[jointedIndex].rect,rects[k]))
+                 if(isMatchedRect(objFeature[currentID].rect,rects[k]))
                               index++;
               }
-              if(index>1){
+              //if obj[jointedIndex] can match two rects
+              // obj splited,do not match currentobj rect again
+              if(index>1)
+              {
                   matched[objFeature[currentID].rectIndex]=1;
-                  objSplited=1;
-                  cout<<"rect split-------";
-              }
-          }
-          //matching other objects
-          for(i=0; i<MAXOBJNUM; i++)
-          {
-             cout<<"objFeature[]= "<<i;
-             if(objFeature[i].rectIndex >= 0 && !objFeature[i].isCurrentObj)
-             {
-
-                 haveMatchedRect=false;
-                 for(k=0; k<rectsNum; k++)
-                 {
-                    if(isMatchedRect(objFeature[i].rect,rects[k])
-                            && matched[k]==0)
+                  for(k=0; k<rectsNum; k++)
+                  {
+                      if(isMatchedRect(objFeature[jointedIndex].rect,rects[k])
+                              && matched[k]==0)
                       {
-                     //     if(objJointed==1 && k==objFeature[currentID].rectIndex)
-                     //         continue;             //jointed and same as currentobj,not match
-                          objFeature[i].rectIndex=k;
-                      //    objFeature[i].rect=rects[k];
+                          objFeature[jointedIndex].rectIndex=k;
+ /*aaa*/                  objFeature[jointedIndex].rect=rects[k];
                           matched[k]=1;
                           matchedNum++;
-                          haveMatchedRect=true;
-                          cout<<"  has a match  i= "<<i<<"  k= "<<k;
-                          cout<<" rect x,width  "<<rects[k].x<<" "<<rects[k].width;
+
                       }
                   }
-                 if(!haveMatchedRect )
-                 {     //if there is a objFeture have no matched rect
-
-                     //  if(objFeature[i].trustedValue==4){  //a confirmed obj removed
-                     //objNum-=1;
-                     //if(objNum<0)
-                      //   objNum=0;
-                     //      if(objFeature[i].isCurrentObj)
-                     //          currentID=-1;
-                     //  }
-                     objNum-=1;
-                     if(objNum<0)
-                         objNum=0;
-                     object_Feature_Init(objFeature[i]);
-                     //9.20 a jointed obj removed, to not jointed status
-                     if(i==jointedIndex){
-                         jointedIndex=-1;
-                         objJointed=0;
-                     }
-                     cout<<"no match, object(comfirmed or not) removed"<<i<<endl;
-                 }
+                  objSplited=1;
+                  objJointed=0;
+                  // jointedIndex set to -1 after select currentObj
+                  cout<<"rect split-------";
               }
-             cout<<endl;
+              else if(index==1)
+              {
+                  objJointed+=1;
+  /*aaa*/         objFeature[jointedIndex].rectIndex=objFeature[currentID].rectIndex;
+  /*aaa*/         objFeature[jointedIndex].rect=rects[objFeature[jointedIndex].rectIndex];
+                  if(objJointed==200)
+                  {
+                      if(objFeature[jointedIndex].trustedValue>=TRUSTTHRES)
+                          objNum--;
+                      object_Feature_Init(objFeature[jointedIndex]);
+                      objJointed=0;
+                      objSplited=0;
+                      jointedIndex=-1;
+                      ui->warning_lineEdit->setText("timeout,remove a joined obj");
+                  }
+
+              }
+              else
+              {
+                  if(objFeature[jointedIndex].trustedValue>=TRUSTTHRES)
+                      objNum--;
+                  object_Feature_Init(objFeature[jointedIndex]);
+                  objJointed=0;
+                  objSplited=0;
+                  jointedIndex=-1;
+                  ui->warning_lineEdit->setText("can't match,remove a joined obj");
+              }
+          }
+
+          //3. not match current rect again
+          //to treat jointed, when match currentObj,we may not set match[]
+          //here add it. means this rect has been mached by currentObj
+          if(currentID>-1 && objFeature[currentID].noMatch==-1)
+          {
+              matched[objFeature[currentID].rectIndex]=1;
+              objFeature[currentID].rect=rects[objFeature[currentID].rectIndex];
+          }
+
+          //b. first time join
+          if(currentID>-1 && objJointed==0 && objSplited==0)
+          {
+             for(i=0; i< MAXOBJNUM; i++)
+             {
+                if(objFeature[i].rectIndex>-1 && i!=currentID)
+                {
+                    //there is a joined obj
+                    if(isMatchedRect(objFeature[i].rect,objFeature[currentID].rect))
+                    {
+                        objFeature[i].rectIndex=objFeature[currentID].rectIndex;
+                        objFeature[i].rect=objFeature[currentID].rect;
+                        matchedNum++;
+                        objJointed=1;
+                        jointedIndex=i;
+                        currentDirection=objFeature[currentID].moveX;
+                        jointedDirection=objFeature[jointedIndex].moveX;
+                        if(fabs(currentDirection)<0.1)
+                            currentDirection=-jointedDirection;
+                        cout<<"two rect jointed"<<currentID<<"  to "<<i<<endl;
+                        break;
+
+                    }
+                }
+             }
+          }  //end of if(objJoined==0)
+
+  /*aaa*/ //when splited, do not choose a not moved rect as currentobj rect
+          if(currentID>-1 && objSplited==1)
+          {
+              rectemp=objFeature[currentID].rect;
+              haveMatchedRect=false;
+              for(k=0; k<notMoveRectNum; k++)
+              {
+                  if(isMatchedNotMove(notMoveRect[k],rectemp))
+                      haveMatchedRect=true;
+              }
+              rectemp=objFeature[jointedIndex].rect;
+              for(k=0; k<notMoveRectNum; k++)
+              {
+                  if(isMatchedNotMove(notMoveRect[k],rectemp))
+                      haveMatchedRect=false;
+              }
+              if(haveMatchedRect)
+              {
+                   rectemp=objFeature[currentID].rect;
+                   index=objFeature[currentID].rectIndex;
+                   objFeature[currentID].rect=objFeature[jointedIndex].rect;
+                   objFeature[currentID].rectIndex=objFeature[jointedIndex].rectIndex;
+                   objFeature[jointedIndex].rect=rectemp;
+                   objFeature[jointedIndex].rectIndex=index;
+              }
+
           }
 
 
- //         if(matchedNum<rectsNum)
- //         {
-           //to treat jointed, when match currentObj,we may not set match[]
-           //here add it. means this rect has been mached by currentObj
-            if(currentID>=0 && objFeature[currentID].noMatch==-1){
-                matched[objFeature[currentID].rectIndex]=1;
-            }
 
-             //if there is new rects that not matched to a obj , add to objFeture
-            for(k=0; k<rectsNum; k++)
-            {
-                if(matched[k]==0)                   //not matched rect
-                {
-                    for(i=0; i<MAXOBJNUM; i++)
-                    {
-                     if(objFeature[i].rectIndex >=0)    //already mateched obj,continue
-                        continue;
-                     objFeature[i].noMatch=-1;
-                     objFeature[i].rectIndex= k;
-                     objFeature[i].rect=rects[k];
-                     objFeature[i].lkRect=rects[k];
-                     objFeature[i].trackedPointNum=0;
-                     objFeature[i].trustedValue =1;  //a obj needed to confirm
-                     matchedNum++;
-                //     matched[k]=1;
-                     cout<<"a rect to add"<<endl;
-                     break;
-                     }
-                    }
-                }
-   //         }
-          cout<<" matched number"<<matchedNum<<endl;
+          //4.matching other objects
+           for(i=0; i<MAXOBJNUM; i++)
+           {
 
+               if(i==currentID || i==jointedIndex)
+                   continue;
+               if(objFeature[i].rectIndex >-1)
+               {
 
+                   haveMatchedRect=false;
+                   for(k=0; k<rectsNum; k++)
+                   {
+                       if(isMatchedRectLK(objFeature[i].lkRect,rects[k])
+                               && matched[k]==0)
+                       {
+                           objFeature[i].rectIndex=k;
+                           objFeature[i].rect=rects[k];
+                           matched[k]=1;
+                           matchedNum++;
+                           haveMatchedRect=true;
+                       }
+                   }
+                   if(!haveMatchedRect )
+                   {     //if there is a objFeture have no matched rect
+                       //a confirmed obj removed
+                       if(objFeature[i].trustedValue>=TRUSTTHRES)
+                       {
+                           objNum-=1;
+                           if(objNum<0)
+                               objNum=0;
+                       }
 
-          matchedNum=0;
+                       object_Feature_Init(objFeature[i]);
+                       //9.20 a jointed obj removed, to not jointed status
+                       //                     if(i==jointedIndex){
+                       //                         jointedIndex=-1;
+                       //                         objJointed=0;
+                       //                     }
+                       cout<<"no match, object(comfirmed or not) removed"<<i<<endl;
+                   } //end of no match
+               } //end of if
+           }  //end of for
+
+            //5. if there are new rects that not matched to a obj , add to objFeture
+           for(k=0; k<rectsNum; k++)
+           {
+               if(matched[k]==0)                   //not matched rect
+               {
+                   for(i=0; i<MAXOBJNUM; i++)
+                   {
+                       if(objFeature[i].rectIndex >=0)    //already mateched obj,continue
+                           continue;
+                       objFeature[i].noMatch=-1;
+                       objFeature[i].rectIndex= k;
+                       objFeature[i].rect=rects[k];
+                       objFeature[i].initialRect=rects[k];
+                       objFeature[i].lkRect=rects[k];
+                   //    objFeature[i].center.x=rects[k].x+rects[k].width/2;
+                   //    objFeature[i].center.y=rects[k].y+rects[k].height/2;
+                       objFeature[i].trackedPointNum=0;
+                       objFeature[i].trustedValue =1;  //a obj needed to confirm
+                       objFeature[k].notmoveCount=0;
+                       matchedNum++;
+                       matched[k]=1;
+                       cout<<"a rect to add"<<endl;
+                       break;
+                   }
+               }
+           }
+
+          cout<<" matched number="<<matchedNum<<endl;
+
+       // matchedNum= obj matched to a rect
+       // rect --> obj
+       //   matchedNum=0;
+          vbNum=0;
           for(k=0; k<MAXOBJNUM; k++)
           {
-              if(objFeature[k].recIndex>=0)
+              if(objFeature[k].rectIndex>-1)
               {
-                  objFeature[machedNum]=objFeatue[k];
-                  if(objFeature[k].isCurrentObj)
-                      currentID=machedNum;
-                  if(objFeature[k].recIndex!=NOMATCHINDEX)
-                    objFeature[k].rect=rect[objFeature[k].rectIndex];
-                  matchedNum++;
+                  vbNum++;
+                  cout<<" objindex="<<k;
+                  cout<<" rectindex="<<objFeature[k].rectIndex;
+                  cout<<" trust="<<objFeature[k].trustedValue;
+                  cout<<" points="<<objFeature[k].trackedPointNum<<endl;
+                  cv::rectangle(colorFrame, rects[objFeature[k].rectIndex],
+                          cv::Scalar(255, 0, 0), 4);
               }
           }
           //detect if the obj is overlaped with a screenrange
           for(k=0; k<MAXOBJNUM; k++)
           {
 
-              if( objFeature[k].rectIndex>=0 && haveScreenRange)
+              if(objFeature[k].rectIndex>-1 && haveScreenRange)
               {
                   if(isMatchedRect(objFeature[k].rect,screenRange))
                       objFeature[k].screenIndex=0;
-              }
-              if( objFeature[k].rectIndex>=0)
-              {
-                  cout<<" index="<<objFeature[k].rectIndex;
-                  cout<<" trust="<<objFeature[k].trustedValue;
-                  cout<<" points="<<objFeature[k].trackedPointNum<<endl;
-                  cv::rectangle(colorFrame, rects[objFeature[k].rectIndex],
-                          cv::Scalar(255, 0, 0), 2);
+                  else
+                      objFeature[k].screenIndex=-1;
               }
 
           }
+          cout<<" vb number="<<vbNum<<" joinedIndex="<<jointedIndex<<endl;
+
+          for(k=0; k<MAXOBJNUM; k++)
+          {
+              if(objFeature[k].rectIndex>-1 && objFeature[k].trustedValue==-1)
+                  if(!isMatchedRect(objFeature[k].rect,objFeature[k].initialRect))
+                  {
+                      objFeature[k].trustedValue=1;
+                      objFeature[k].trackedPointNum=0;
+                      objFeature[k].initialRect=objFeature[k].rect;
+                  }
+
+          }
+
 
           //begin to do lk tracking
           for(k=0; k<MAXOBJNUM; k++)
           {
-             // 1. if new feature points must be added
-             if( objFeature[k].rectIndex>=0            //matched
-                      && objFeature[k].trustedValue>=0      //needed tracking
-                      && objFeature[k].trackedPointNum < LEASTLKPOINTS) //|| objSplited==1))
-                                   //not enough points or objSplited
+              if(objFeature[k].rectIndex== -1)
+                  continue;
+              // do not track untrusted obj
+              else if(objFeature[k].trustedValue== -1)
+                  continue;
+             //do not track jointed obj
+              else if(objJointed>0 && k==jointedIndex)
+                  continue;
+              //need to do lk
+              else
               {
-                    objFeature[k].points[0].clear();
-                    objFeature[k].initial.clear();
-                    rectemp=objFeature[k].lkRect;
-                    for (int i = 0; i < 10; i++)
-                    {
-                        p.x=rectemp.x+i*rectemp.width/10.;
-                        for (int j = 0; j < 20; j++)
-                        {
-                          //  index=objFeature[k].rectIndex;
-                          //  p.x=rects[index].x+i*rects[index].width/10.;
-                          //  p.y=rects[index].y+j*rects[index].height/20.;
-                            p.y=rectemp.y+j*rectemp.height/20.;
-                            objFeature[k].points[0].push_back(p);
-                            objFeature[k].initial.push_back(p);
-                        }
-                    }
-                    objFeature[k].trackTimes=TRACKTIMES;
-                    objFeature[k].trackedPointNum=200;
-               }  //end of add points
-             else if( objFeature[k].rectIndex>=0            //matched
-                      && objFeature[k].trustedValue>=0      //needed tracking
-                      && objSplited==1)
-                                   //not enough points or objSplited
-              {
-                    objFeature[k].points[0].clear();
-                    objFeature[k].initial.clear();
-                    rectemp=rects[objFeature[k].rectIndex];
-                    for (int i = 0; i < 10; i++)
-                    {
-                        p.x=rectemp.x+i*rectemp.width/10.;
-                        for (int j = 0; j < 20; j++)
-                        {
-                          //  index=objFeature[k].rectIndex;
-                          //  p.x=rects[index].x+i*rects[index].width/10.;
-                          //  p.y=rects[index].y+j*rects[index].height/20.;
-                            p.y=rectemp.y+j*rectemp.height/20.;
-                            objFeature[k].points[0].push_back(p);
-                            objFeature[k].initial.push_back(p);
-                        }
-                    }
-                    objFeature[k].trackTimes=TRACKTIMES;
-                    objFeature[k].trackedPointNum=200;
-               }  //end of add points
-             for (i=0; i< objFeature[k].points[0].size(); i++) {
-                 cv::circle(colorFrame, objFeature[k].points[0][i], 1,
-                         cv::Scalar(255, 0, 0), -1);
-             }
+                  // 1. if lk points must be regotten
+                  // a. if splited==1 get new points
+                  candoLK=0;
+                  if(objSplited==1)
+                  {
+                      objFeature[k].points[0].clear();
+                      rectemp=objFeature[k].rect;
+                      for (int i = 0; i < 10; i++)
+                      {
+                          p.x=rectemp.x+i*rectemp.width/10.;
+                          for (int j = 0; j < 20; j++)
+                          {
+                              p.y=rectemp.y+j*rectemp.height/20.;
+                              objFeature[k].points[0].push_back(p);
+                              cv::circle(colorFrame, p, 1,
+                                      cv::Scalar(255, 0, 0), -1);
 
-              // 2. do lk track
-                if(objFeature[k].rectIndex>=0   //matched
-                        && objFeature[k].trustedValue>=0
-                        && objFeature[k].points[0].size()>=LEASTLKPOINTS) //need to tracking
-                {
-                cv::calcOpticalFlowPyrLK(
-                     frame_prev, frame, // 2 consecutive images
-                      objFeature[k].points[0], // input point positions in first image
-                      objFeature[k].points[1], // output point positions in the 2nd image
-                       status, // tracking success
-                       err); // tracking error
-                //  a.loop over the tracked points to reject some
-                int pointNum=0;
-                int moveNum=0;
-                double xmove=0;
-                double ymove=0;
-                double initialMove=0;
-                double sumXmove=0;
-                double sumYmove=0;
-                double meanMove=0;
-                for( int i= 0; i < objFeature[k].points[1].size(); i++ ) {
-                    //  do we keep this point?
-                    if(status[i]){
-                        xmove=objFeature[k].points[0][i].x-objFeature[k].points[1][i].x;
-                        ymove=objFeature[k].points[0][i].y-objFeature[k].points[1][i].y;
-                        if((fabs(xmove)+fabs(ymove))<15)
-                        {
-                            objFeature[k].points[1][pointNum++] = objFeature[k].points[1][i];
-                        //    objFeature[k].initial[pointNum++] = objFeature[k].initial[i];
-                            // if point has moved,calculate sum
-                            if((fabs(xmove)+fabs(ymove))>0.01)
-                            {
-                                sumXmove += xmove;
-                                sumYmove += ymove;
-                                moveNum++;
-                            }
-                        }
-                     }
-                } //end of for
-                objFeature[k].points[1].resize(pointNum);
-                objFeature[k].lkMatchedNum=pointNum;
-                for (i=0; i< objFeature[k].points[1].size(); i++) {
-                    cv::circle(colorFrame, objFeature[k].points[1][i], 1,
-                            cv::Scalar(0, 255, 0), -1);
-                }
+                          }
+                      }
 
-                if(moveNum>0)
-                {
-                    meanMove=(fabs(sumXmove)+fabs(sumYmove))/moveNum;
-                    meanMove=meanMove/3;
-                    pointNum=0;
-                    sumXmove=0;
-                    sumYmove=0;
-                    for( int i= 0; i < objFeature[k].points[1].size(); i++ )
-                    {
-                        xmove=objFeature[k].points[0][i].x-objFeature[k].points[1][i].x;
-                        ymove=objFeature[k].points[0][i].y-objFeature[k].points[1][i].y;
-                        if((fabs(xmove)+fabs(ymove))>meanMove)
-                        {
-                            objFeature[k].points[1][pointNum++] = objFeature[k].points[1][i];
-                            sumXmove += xmove;
-                            sumYmove += ymove;
-                        }
-                    }
-                }
-               // b. eliminate unsuccesful points
-                objFeature[k].points[1].resize(pointNum);
-                objFeature[k].initial.resize(pointNum);
-                //  c. handle the accepted tracked points
+                      objFeature[k].trackedPointNum=200;
+                      candoLK=1;
+                  }  //end of split==1
 
-                for (i=0; i< objFeature[k].points[1].size(); i++) {
-                        cv::circle(colorFrame, objFeature[k].points[1][i], 1,
-                                cv::Scalar(0, 0, 255), -1);
-                }
+                  //b. currentObj and noMatch>-1 do not get new points
+                  else if(k==currentID && objFeature[k].noMatch > -1)
+                  {
+                      if(objFeature[k].trackedPointNum>0)
+                          candoLK=1;
+                  }
+                  //c. not enough points
+                  else
+                  {
+                      if(objFeature[k].trackedPointNum < LEASTLKPOINTS)
+                      {
+                          objFeature[k].points[0].clear();
+                          rectemp=objFeature[k].lkRect;
+                          vbtemp=objFeature[k].rect;
+                          centerPoint.x=rectemp.x+rectemp.width/2;
+                          centerPoint.y=rectemp.y+rectemp.height/2;
 
-                  //  objFeature[k].rect= getRect(objFeature[k].points[1]);
-                //record tracked point number
-                objFeature[k].trackedPointNum=pointNum;
-                // record movement
-                objFeature[k].mvIndex++;
-                if(objFeature[k].mvIndex==MOVENUM)
-                        objFeature[k].mvIndex=0;
-                index=objFeature[k].mvIndex;
-                if(pointNum>5){
-                    objFeature[k].objMvX[index]=sumXmove/pointNum;
-                    objFeature[k].objMvY[index]=sumYmove/pointNum;
-                }//end of if pointNum>5
-                else{
-                    objFeature[k].objMvX[index]=0;
-                    objFeature[k].objMvY[index]=0;
-                }
-                sumXmove=0;
-                sumYmove=0;
-                for(i=0; i<MOVENUM; i++){
-                    sumXmove+=objFeature[k].objMvX[i];
-                    sumYmove+=objFeature[k].objMvY[i];
-                }
-                objFeature[k].moveX=sumXmove/MOVENUM;
-                objFeature[k].moveY=sumYmove/MOVENUM;
+                          cv::circle(colorFrame, centerPoint, 4,
+                                  cv::Scalar(0, 255, 255), -1);
+                          cout<<" k<least get new,lkrect= "<<rectemp.x<<" "
+                             <<rectemp.y<<" "<<rectemp.width<<" "<<rectemp.height<<endl;
+                          if(rectemp.width<20)
+                          {
+                              rectemp.x=centerPoint.x-15;
+                              if(rectemp.x<0)
+                                  rectemp.x=0;
+                              rectemp.width=30;
+                              if((rectemp.x+rectemp.width)>(width-1))
+                                  rectemp.width=width-1-rectemp.x;
+                          }
+                          if(rectemp.height<30)
+                          {
+                              rectemp.y=centerPoint.y-25;
+                              if(rectemp.y<0)
+                                  rectemp.y=0;
+                              rectemp.height=50;
+                              if((rectemp.y+rectemp.height)>(height-1))
+                                  rectemp.height=height-1-rectemp.y;
 
-                //record rect
-                objFeature[k].rect= rects[objFeature[k].rectIndex];
-                //record lkrect
-                if(pointNum>5)
-                {
-                    lkLeft=640;
-                    lkRight=0;
-                    lkTop=360;
-                    lkBottom=0;
+                          }
+                          if(rectemp.x<vbtemp.x)
+                              rectemp.x=vbtemp.x;
+                          if((rectemp.x+rectemp.width)>(vbtemp.x+vbtemp.width))
+                              rectemp.width=vbtemp.x+vbtemp.width-rectemp.x;
+                          if(rectemp.y<vbtemp.y)
+                              rectemp.y=vbtemp.y;
+                          if(rectemp.y+rectemp.height>vbtemp.y+vbtemp.height)
+                              rectemp.height=vbtemp.y+vbtemp.height-rectemp.y;
 
-                    for( int i= 0; i < objFeature[k].points[1].size(); i++ )
-                    {
-                        p= objFeature[k].points[1][i];
-                        if(p.x<lkLeft)
-                            lkLeft=p.x;
-                        if(p.x>lkRight)
-                            lkRight=p.x;
-                        if(p.y<lkTop)
-                            lkTop=p.y;
-                        if(p.y>lkBottom)
-                            lkBottom=p.y;
+                          for (int i = 0; i < 10; i++)
+                          {
+                              p.x=rectemp.x+i*rectemp.width/10.;
+                              for (int j = 0; j < 20; j++)
+                              {
+                                  p.y=rectemp.y+j*rectemp.height/20.;
+                                  objFeature[k].points[0].push_back(p);
+                                  cv::circle(colorFrame, p, 1,
+                                          cv::Scalar(255, 0, 0), -1);
+                              }
+                          }
+                          objFeature[k].trackedPointNum=200;
+                          candoLK=1;
+                      }
+                      else
+                          candoLK=1;
+                  }  //end c.else
 
-                    }
-
-                    //objFeature[k].center.x=objFeature[k].rect.x+objFeature[k].rect.width/2;
-                    //objFeature[k].center.y=objFeature[k].rect.y+objFeature[k].rect.height/2;
-                    objFeature[k].center.x=(lkLeft+lkRight)/2;
-                    objFeature[k].center.y=(lkTop+lkBottom)/2;
-                    objFeature[k].lkRect.x=lkLeft;
-                    if(objFeature[k].rect.y<lkTop && objFeature[k].screenIndex==-1)
-                        objFeature[k].lkRect.y = objFeature[k].rect.y;
-                    else
-                        objFeature[k].lkRect.y = lkTop;
-
-                    objFeature[k].lkRect.width=lkRight-lkLeft;
-                    if(objFeature[k].lkRect.width<20)
-                    {
-                        objFeature[k].lkRect.width=40;
-                        objFeature[k].lkRect.x=((objFeature[k].center.x-20)>0)?objFeature[k].center.x-20:0;
-                    }
-                    if((objFeature[k].rect.y+objFeature[k].rect.height)
-                            > (objFeature[k].lkRect.y+objFeature[k].lkRect.height))
-                        objFeature[k].lkRect.height =
-                            objFeature[k].rect.y+objFeature[k].rect.height -objFeature[k].lkRect.y;
-                  //  objFeature[k].lkRect.height=lkBottom-lkTop;
-                 //   objFeature[k].lkRect.height=height-lkTop;
-                }
-
-                if(!isMatchedRect600(objFeature[k].lkRect,objFeature[k].rect))
-                {
-                    objFeature[k].lkRect=objFeature[k].rect;
-                    objFeature[k].trackedPointNum=0;
-
-                }
-                // draw obj under tracking  lkrect
-                cv::rectangle(colorFrame, objFeature[k].lkRect,
-                              cv::Scalar(255, 255, 255), 2);
-
-                cout<<"   point number="<<pointNum<<"  moveX="<<objFeature[k].moveX;
-                cout<<"   MvX="<<objFeature[k].objMvX[objFeature[k].mvIndex];
-                cout<<"  MvY="<<objFeature[k].objMvX[objFeature[k].mvIndex]<<endl;
-
-                std::swap(objFeature[k].points[1], objFeature[k].points[0]);
-              }   //end of do lk tracking for one objFeature
+                  // 2. do lk track
+                  if(candoLK==1 ) //need to tracking
+                  {
+                      cv::calcOpticalFlowPyrLK(
+                                  frame_prev, frame, // 2 consecutive images
+                                  objFeature[k].points[0], // input point positions in first image
+                              objFeature[k].points[1], // output point positions in the 2nd image
+                              status, // tracking success
+                              err); // tracking error
+                      //  a.loop over the tracked points to reject some
+                      pointNum=0;
+                      moveNum=0;
+                      xmove=0;
+                      ymove=0;
+                      sumXmove=0;
+                      sumYmove=0;
+                      meanMove=0;
+                      for( int i= 0; i < objFeature[k].points[1].size(); i++ ) {
+                          //  do we keep this point?
+                          if(status[i]){
+                              xmove=objFeature[k].points[0][i].x-objFeature[k].points[1][i].x;
+                              ymove=objFeature[k].points[0][i].y-objFeature[k].points[1][i].y;
+                              if((fabs(xmove)+fabs(ymove))<15)
+                              {
+                                  objFeature[k].points[1][pointNum++] = objFeature[k].points[1][i];
+                                  cv::circle(colorFrame, objFeature[k].points[1][i], 1,
+                                          cv::Scalar(0, 255, 0), -1);
+                                  // if point has moved,calculate sum
+                                  if((fabs(xmove)+fabs(ymove))>0.01)
+                                  {
+                                      sumXmove += xmove;
+                                      sumYmove += ymove;
+                                      moveNum++;
+                                  }
+                              }
+                          }
+                      } //end of for
 
 
-           }  //end of do lk truacking for all obj
+                      // b. record lk results:lkrect, pointNUm, objMvx/y
+                      objFeature[k].points[1].resize(pointNum);
+                      objFeature[k].lkMatchedNum=pointNum;
+                      objFeature[k].trackedPointNum=pointNum;
+                      index=objFeature[k].mvIndex;
+
+                      if(pointNum>=LEASTLKPOINTS/2)
+                      {
+                          // record movement
+                          if(moveNum>0)
+                          {
+                              objFeature[k].objMvX[index]=sumXmove/moveNum;
+                              objFeature[k].objMvY[index]=sumYmove/moveNum;
+                          }
+                          else
+                          {
+                              objFeature[k].objMvX[index]=0;
+                              objFeature[k].objMvY[index]=0;
+                          }
+                          //record lkrect
+                          lkLeft=640;
+                          lkRight=0;
+                          lkTop=360;
+                          lkBottom=0;
+
+                          for(i= 0; i < objFeature[k].points[1].size(); i++ )
+                          {
+                              p= objFeature[k].points[1][i];
+                              if(p.x<lkLeft)
+                                  lkLeft=p.x;
+                              if(p.x>lkRight)
+                                  lkRight=p.x;
+                              if(p.y<lkTop)
+                                  lkTop=p.y;
+                              if(p.y>lkBottom)
+                                  lkBottom=p.y;
+
+                          }
+
+                        //  objFeature[k].center.x=(lkLeft+lkRight)/2;
+                        //  objFeature[k].center.y=(lkTop+lkBottom)/2;
+                          objFeature[k].lkRect.x=lkLeft;
+                          objFeature[k].lkRect.y =lkTop;
+                          objFeature[k].lkRect.width=lkRight-lkLeft;
+                          objFeature[k].lkRect.height=lkBottom-lkTop;
+
+//                          objFeature[k].lkRect.x=lkLeft;
+//                          if(objFeature[k].rect.y<lkTop && objFeature[k].screenIndex==-1)
+//                              objFeature[k].lkRect.y = objFeature[k].rect.y;
+//                          else
+//                              objFeature[k].lkRect.y = lkTop;
+
+//                          objFeature[k].lkRect.width=lkRight-lkLeft;
+//                          if(objFeature[k].lkRect.width<20)
+//                          {
+//                              objFeature[k].lkRect.width=40;
+//                              objFeature[k].lkRect.x=((objFeature[k].center.x-20)>0)?objFeature[k].center.x-20:0;
+//                          }
+//                          if((objFeature[k].lkRect.x+ objFeature[k].lkRect.width)>=width)
+//                              objFeature[k].lkRect.width=width-objFeature[k].lkRect.x-1;
+//                          if((objFeature[k].rect.y+objFeature[k].rect.height)
+//                                  > (objFeature[k].lkRect.y+objFeature[k].lkRect.height))
+//                              objFeature[k].lkRect.height =
+//                                      objFeature[k].rect.y+objFeature[k].rect.height -objFeature[k].lkRect.y;
+//                          if((objFeature[k].lkRect.y+ objFeature[k].lkRect.height)>=height)
+//                              objFeature[k].lkRect.height=height-objFeature[k].lkRect.y-1;
+                          //  end of record lkrect
+                          //--c.if obj moved, calc again, eliminate unmoved points
+                          if(moveNum>0)
+                          {
+                              meanMove=(fabs(sumXmove)+fabs(sumYmove))/moveNum;
+                              meanMove=meanMove/3;
+                              pointNum=0;
+                              sumXmove=0;
+                              sumYmove=0;
+                              for( int i= 0; i < objFeature[k].points[1].size(); i++ )
+                              {
+                                  xmove=objFeature[k].points[0][i].x-objFeature[k].points[1][i].x;
+                                  ymove=objFeature[k].points[0][i].y-objFeature[k].points[1][i].y;
+                                  if((fabs(xmove)+fabs(ymove))>meanMove)
+                                  {
+                                      objFeature[k].points[1][pointNum++] = objFeature[k].points[1][i];
+                                      cv::circle(colorFrame, objFeature[k].points[1][i], 1,
+                                              cv::Scalar(0, 0, 255), -1);
+                                      sumXmove += xmove;
+                                      sumYmove += ymove;
+                                  }
+                              }
+                              // set trackedpointNUm and objMvx/y again
+                              objFeature[k].points[1].resize(pointNum);
+                              objFeature[k].trackedPointNum=pointNum;
+                              if(pointNum>0)
+                              {
+                                  objFeature[k].objMvX[index]=sumXmove/pointNum;
+                                  objFeature[k].objMvY[index]=sumYmove/pointNum;
+                              }
+                              else
+                              {
+                                  objFeature[k].objMvX[index]=0;
+                                  objFeature[k].objMvY[index]=0;
+                              }
+
+                              //                          for (i=0; i< objFeature[k].points[1].size(); i++)
+                              //                          {
+                              //                              cv::circle(colorFrame, objFeature[k].points[1][i], 1,
+                              //                                      cv::Scalar(0, 0, 255), -1);
+                              //                          }
+
+                          } // end of moveNum>0 calc again
+
+                      }  //end of pointNum>10
+                      else  //pointNum<=10 //lkrect same as last frame
+                      {
+                          objFeature[k].objMvX[index]=0;
+                          objFeature[k].objMvY[index]=0;
+                      }
+
+                      objFeature[k].mvIndex++;
+                      if(objFeature[k].mvIndex==MOVENUM)
+                          objFeature[k].mvIndex=0;
+
+                      sumXmove=0;
+                      sumYmove=0;
+                      for(i=0; i<MOVENUM; i++){
+                          sumXmove+=objFeature[k].objMvX[i];
+                          sumYmove+=objFeature[k].objMvY[i];
+                      }
+                      objFeature[k].moveX=sumXmove/MOVENUM;
+                      objFeature[k].moveY=sumYmove/MOVENUM;
+
+
+                      // draw obj under tracking  lkrect
+                      cv::rectangle(colorFrame, objFeature[k].lkRect,
+                                    cv::Scalar(255, 255, 255), 1);
+
+                      cout<<"   point number="<<pointNum<<"  moveX="<<objFeature[k].moveX;
+                      cout<<"   MvX="<<objFeature[k].objMvX[objFeature[k].mvIndex];
+                      cout<<"  MvY="<<objFeature[k].objMvY[objFeature[k].mvIndex]<<endl;
+
+                      //lkrect not matched with VB-rect, =vb-rect
+                      if(k!=currentID || (k==curentID && objFeature[k].noMatch==-1))
+                      {
+                          if(!isMatchedRectLK(objFeature[k].lkRect,objFeature[k].rect))
+                          {
+                              objFeature[k].lkRect=objFeature[k].rect;
+                              objFeature[k].trackedPointNum=0;
+
+                          }
+                      }
+
+                      std::swap(objFeature[k].points[1], objFeature[k].points[0]);
+                  } //end of do lk tracking for a obj
+
+              } //end of else (need to do lk)
+
+
+          }  //end of do lk truacking for all obj
 //       策略，
          //treat tracking status of lk
          for(k=0; k<MAXOBJNUM; k++){
-             if(objFeature[k].rectIndex>=0
-                     && objFeature[k].trustedValue>=0){
-                 if(objFeature[k].trackedPointNum>5){   //tracking ok
-                     if(objFeature[k].trustedValue<4){  //待定目标
+             if(objFeature[k].trustedValue> -1)
+             {
+                //lk tracking,obj moved
+
+                 if(fabs(objFeature[k].objMvX[objFeature[k].mvIndex])>LEASTMOVE)
+                 {
+                     if(objFeature[k].trustedValue<TRUSTTHRES){  //待定目标
+                         objFeature[k].trustCount++;
                          objFeature[k].trustedValue+=1;
-                         if(objFeature[k].trustedValue==4){
-                             objFeature[k].notmoveCount=900;
+                         if(objFeature[k].trustedValue==TRUSTTHRES){
+                             //objFeature[k].notmoveCount=900;
                              objNum+=1;
                              cout<<"a object comfirmed index="<<k<<endl;
                          }
 
                      }    //end of 待定目标
                      else{
-                         objFeature[k].notmoveCount=900;
+                         //objFeature[k].notmoveCount=900;
+                         objFeature[k].trustedValue+=1;
                      }
 
-                 }  //end of tracking ok
-                 else{                                  //tracking not ok
-                     if(objFeature[k].trustedValue<4){      //待定目标
+                 }  //end of tracking obj moved
+                 else
+                 {    //lk tracking,obj not moved
+                     if(objFeature[k].trustedValue<TRUSTTHRES){      //待定目标
+                         objFeature[k].trustCount++;
                          objFeature[k].trustedValue-=1;
+                         if(objFeature[k].trustedValue==-1)
+                         {
+                             if(objFeature[k].trustCount<20)
+                                 objFeature[k].trustedValue=1;
+                             else
+                             {
+                                 notMoveRect.push_back(objFeature[k].rect);
+                                 notMoveRectNum++;
+                             }
+                         }
                      }
                      else{                                  //目标
-                         objFeature[k].notmoveCount-=1;
-                         if(objFeature[k].notmoveCount==0){
-                             objNum-=1;
-                             if(objNum<0)
-                                 objNum=0;
-                             if(objFeature[k].isCurrentObj)
-                                 currentID=-1;
-                             object_Feature_Init(objFeature[k]);
-                             cout<<"no move timeout,a object removed"<<endl;
-                         }
+                         objFeature[k].notmoveCount+=1;
+//                         if(objFeature[k].notmoveCount==0){
+//                             objNum-=1;
+//                             if(objNum<0)
+//                                 objNum=0;
+//                             if(objFeature[k].isCurrentObj)
+//                                 currentID=-1;
+//                             //object_Feature_Init(objFeature[k]);
+//                             objFeature[k].trustedValue=1;
+//                             cout<<"no move timeout,a object removed"<<endl;
+//                         }
                      }
                  }    //end of tracking not ok
              }  //end of first if
-         }  //end of for(k=0
+         }  //end of for(k=0 treat lk status of obj
+
+
          //treat condition that there is a rect join accured
-         if(objNum>0 && currentID>=0 ){
-            for(k=0; k<MAXOBJNUM; k++){
-                 if(k==currentID)
-                     continue;
-                 //obj join happend
-                 if(objFeature[k].rectIndex>-1  //9.20  trustedValue==4
-                        && objFeature[k].rectIndex==objFeature[currentID].rectIndex){
-                     if(objJointed==0){
-                         objJointed+=1;
-                         jointedIndex=k;
-                         currentDirection=objFeature[currentID].moveX;
-                         jointedDirection=objFeature[jointedIndex].moveX;
-                         cout<<"two rect jointed"<<currentID<<"  to "<<k<<endl;
+//         if(currentID>=0 ){
+//            for(k=0; k<MAXOBJNUM; k++){
+//                 if(k==currentID)
+//                     continue;
+//                 //obj join happend
+//                 //9.20  trustedValue==4
+//                 if(objFeature[k].rectIndex==objFeature[currentID].rectIndex)
+//                 {
+//                     if(objJointed==0){
+//                         objJointed+=1;
+//                         jointedIndex=k;
+//                         currentDirection=objFeature[currentID].moveX;
+//                         jointedDirection=objFeature[jointedIndex].moveX;
+//                         cout<<"two rect jointed"<<currentID<<"  to "<<k<<endl;
 
-                         break;
-                     }
-                     else
-                         objJointed+=1;
-                     ui->warning_lineEdit->setText("jointed status");
-                     cout<<"jointed count  "<<objJointed<<endl;
-                  }
-            }
-          }
-        //9.20
-         if(objNum>1 && currentID>=0 && objJointed>200
-                 && objFeature[jointedIndex].trustedValue==4){
-       //  if(objNum>1 && currentID>=0 && objJointed>300
-       //              && objFeature[jointedIndex].rectIndex>-1){
-             //jointed so long,may be a dimatched obj,remove it
 
-             object_Feature_Init(objFeature[jointedIndex]);
-             objJointed=0;
-             jointedIndex=-1;
-             objNum-=1;
-             ui->warning_lineEdit->setText("timeout,remove ajointed obj");
-         }
+//                     }
+//                     else
+//                         objJointed+=1;
+//                     ui->warning_lineEdit->setText("jointed status");
+//                     cout<<"jointed count  "<<objJointed<<endl;
+//                     break;
+//                  }
+//             } //end of for
+//          }
+
          //treat condition that jointed rect split
-         if(objNum>1 && currentID>=0 && objJointed>=1 && objSplited==1){
-             if(objFeature[currentID].rectIndex
-                     !=objFeature[jointedIndex].rectIndex){
+         if(vbNum>1 && currentID>-1 && objSplited==1)
+         {
+            // if(objFeature[currentID].rectIndex
+            //         !=objFeature[jointedIndex].rectIndex){
                //rect splited
                  objJointed=0;
                  objSplited=0;
@@ -1786,7 +2047,7 @@ void MainWindow::on_lkvb_button_clicked()
 
                  index=currentDirection
                          * objFeature[currentID].objMvX[objFeature[currentID].mvIndex];
-                 if(objFeature[jointedIndex].trustedValue==4
+                 if(objFeature[jointedIndex].trustedValue>=TRUSTTHRES
                          && objFeature[jointedIndex].objMvX[objFeature[jointedIndex].mvIndex]!=0
                          && index<=0){
                      //not the same direction, exchange currentobj and joined obj
@@ -1797,10 +2058,63 @@ void MainWindow::on_lkvb_button_clicked()
                  }
                  jointedIndex=-1;
                  ui->warning_lineEdit->setText("jointed obj splited");
-             }
+          //   }
          }
 
-       //选取currentobj 输出x,y and objNum
+         //9.20 jointed so long,may be a mismatched obj,remove it
+//          if(vbNum>1 && currentID>=0 && objJointed>200
+//                  && objFeature[jointedIndex].rectIndex>-1)
+//          {
+//        //  if(objNum>1 && currentID>=0 && objJointed>200
+//        //              && objFeature[jointedIndex].trustedValue==4){
+//             if(objFeature[jointedIndex].trustedValue>=4)
+//                 objNum--;
+//              object_Feature_Init(objFeature[jointedIndex]);
+//              objJointed=0;
+//              objSplited=0;
+//              jointedIndex=-1;
+//              ui->warning_lineEdit->setText("timeout,remove ajointed obj");
+//          }
+
+         //treat status that current obj has not match a vb-rect
+          if(currentID > -1 && objFeature[currentID].noMatch > -1)
+          {
+              if(objFeature[currentID].trackedPointNum>0)
+              {
+                  objFeature[currentID].noMatch--;
+                  if(objFeature[currentID].noMatch==0)
+                  {
+                      objNum-=1;
+                      if(objNum<0)
+                          objNum=0;
+                      object_Feature_Init(objFeature[currentID]);
+                      currentID=-1;
+                      objJointed=0;
+                      objSplited=0;
+                      jointedIndex=-1;
+                  }
+              }
+              else
+              {
+                  objNum-=1;
+                  if(objNum<0)
+                      objNum=0;
+                  object_Feature_Init(objFeature[currentID]);
+                  currentID=-1;
+                  objJointed=0;
+                  objSplited=0;
+                  jointedIndex=-1;
+              }
+          }
+
+        //recalclate objNum
+          objNum=0;
+          for(k=0; k<MAXOBJNUM; k++)
+          {
+              if(objFeature[k].rectIndex>-1 && objFeature[k].trustedValue >=TRUSTTHRES)
+                  objNum++;
+          }
+         //选取currentobj 输出x,y and objNum
          disToCenter= CENTERx;
          index= -1;
          cout<<"result output ";
@@ -1808,8 +2122,9 @@ void MainWindow::on_lkvb_button_clicked()
              //there is no current obj, choose one
              if(currentID<0){
                  for(k=0; k<MAXOBJNUM; k++){
-                     if(objFeature[k].trustedValue==4){     //is a confirmed obj
-                         i=abs(objFeature[k].center.x-CENTERx);
+                     if(objFeature[k].trustedValue>=TRUSTTHRES){     //is a confirmed obj
+                         centerPoint.x=objFeature[k].lkRect.x+objFeature[k].lkRect.width/2;
+                         i=abs(centerPoint.x-CENTERx);
                          if(i < disToCenter){   //obj near to center
                          disToCenter=i;
                          index=k;
@@ -1820,9 +2135,11 @@ void MainWindow::on_lkvb_button_clicked()
                  objFeature[index].isCurrentObj=true;
              }  //end if currentID<0
              //if there are at least one ScreenRange
-             if(haveScreenRange){
+             if(currentID >-1 && haveScreenRange)
+             {
                  //check if currentObj in screenrange
-                 if(isMatchedRect(screenRange,objFeature[currentID].rect)){
+                 if(isMatchedRect(screenRange,objFeature[currentID].rect))
+                 {
                      inScreenRange=true;
                      // there are other obj, set it to currentobj
                      if(objNum>1){
@@ -1831,9 +2148,11 @@ void MainWindow::on_lkvb_button_clicked()
                          //there have some confirmed obj not in screenrange
                          for(k=0; k<MAXOBJNUM; k++){
                              if(k!=currentID
-                                   && objFeature[k].trustedValue==4
-                                   && !isMatchedRect(screenRange,objFeature[k].rect)){
-                                 i=abs(objFeature[k].center.x-CENTERx);
+                                   && objFeature[k].trustedValue>=50
+                                   && !isMatchedRect(screenRange,objFeature[k].rect))
+                             {
+                                 centerPoint.x=objFeature[k].lkRect.x+objFeature[k].lkRect.width/2;
+                                 i=abs(centerPoint.x-CENTERx);
                                  if(i < disToCenter){   //obj near to center
                                  disToCenter=i;
                                  index=k;
@@ -1850,27 +2169,41 @@ void MainWindow::on_lkvb_button_clicked()
                      } //end of have other obj not in screen
                   } //end of if current obj in screen
                 // current obj not in screen
-                 else{
+                 else
+                 {
                      inScreenRange=false;
                  }
              }  //end of have screenrange
          }   //end of have obj
 
+         //
+
          //output
+         if(objSplited==1)
+         {
+             objSplited=0;
+             jointedIndex=-1;
+         }
 output:
          if(currentID>-1){
              outputRect=objFeature[currentID].lkRect;
              outputRect.x+=left;
              outputRect.y+=top;
              outputTimeout=objFeature[currentID].notmoveCount;
+             cout<<" trustedValue="<<objFeature[currentID].trustedValue;
+             cout<<" noMatch="<<objFeature[currentID].noMatch;
+         }
+         else
+         {
+             outputRect=Rect(outputCenterx-20,outputCentery-30,40,60);
          }
 
          cv::rectangle(inputFrame, outputRect,
                             cv::Scalar(0, 0, 255), 4);
-         cout<<"currentid "<<currentID<<"  timeout="<<outputTimeout;
+         cout<<" currentid "<<currentID<<"  timeout="<<outputTimeout;
          cout<<"  object number="<<objNum;
          cout<<"  inScreenRange="<<inScreenRange;
-         cout<<"  Jointed status  "<<objJointed<<" objSplit "<<objSplited<<"------end"<<endl;
+         cout<<"  Jointed status  "<<objJointed<<" objSplit "<<objSplited<<"------end";
          //remove 9.21
 /*         else{                      //no obj,choose one from not confirmed obj
                                     //to give out a temp result
@@ -1930,19 +2263,19 @@ output:
              objNum=1;
          }
         //set mask of current object to COLOR_CURRENTOBJ
-        if(currentID>=0){
-            for(i=0; i<objFeature[currentID].rect.height; i++){
-                index=(i+objFeature[currentID].rect.y)* segmentationMap.cols;
-                for(j=objFeature[currentID].rect.x; j<objFeature[currentID].rect.width; j++)
-                {
-                    segTemp=segmentationMap.data+index+j;
-                    if(*segTemp==COLOR_FOREGROUND)
-                        *segTemp=COLOR_CURRENTOBJ;
-                }
-            }
+         if(currentID>=0){
+             for(i=0; i<objFeature[currentID].rect.height; i++){
+                 index=(i+objFeature[currentID].rect.y)* updateMap.cols;
+                 for(j=objFeature[currentID].rect.x; j<objFeature[currentID].rect.width; j++)
+                 {
+                     segTemp=updateMap.data+index+j;
+                     if(*segTemp==COLOR_FOREGROUND)
+                         *segTemp=COLOR_CURRENTOBJ;
+                 }
+             }
          }
          //VIBE background update
-         libvibeModel_Sequential_Update_8u_C1R(model, frame.data, segmentationMap.data);
+         libvibeModel_Sequential_Update_8u_C1R(model, frame.data, updateMap.data);
 
          cv::swap(frame_prev, frame);
 
@@ -1952,12 +2285,12 @@ output:
          imshow("updateMap",updateMap);
 
          gettimeofday(&tsEnd, NULL);//-----------------------测试时间
-         long runtimes;
+        // long runtimes;
          runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
          cout<<"time: "<<runtimes/1000<<endl;
 
           /* Gets the input from the keyboard. */
-          keyboard = waitKey(33);
+          keyboard = waitKey();
    //       if ((frameNumber % 100)==0){
     //           libvibeModel_Sequential_PrintParameters(model);
     //           cout<<"Max rectangle: width"<< maxrect.width
@@ -2047,6 +2380,7 @@ void MainWindow::on_student_button_clicked()
     int rectsNum=0;
     int matched[MAXRECTNUM];
     int matchedNum=0;
+
 
     int pointNum=0;
     float xmove=0;
@@ -2169,7 +2503,7 @@ void MainWindow::on_student_button_clicked()
 
     //-----------------------测试时间
     struct timeval tsBegin,tsEnd;
-
+    long runtimes;
 
     for(i=0; i< MAXSTUDENTNUM; i++) {
         Student_Feature_Init(student[i]);
@@ -2264,6 +2598,10 @@ void MainWindow::on_student_button_clicked()
             lkPoints, // output point positions in the 2nd image
              status, // tracking success
              err); // tracking error
+
+      gettimeofday(&tsEnd, NULL);//-----------------------测试时间
+      runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
+      cout<<"time: "<<runtimes<<endl;
 
       pointNum=0;
       xmove=0;
@@ -2586,9 +2924,9 @@ void MainWindow::on_student_button_clicked()
 
 
      gettimeofday(&tsEnd, NULL);//-----------------------测试时间
-     long runtimes;
+    // long runtimes;
      runtimes=1000000L*(tsEnd.tv_sec-tsBegin.tv_sec)+tsEnd.tv_usec-tsBegin.tv_usec;
-     cout<<"time: "<<runtimes/1000<<endl;
+     cout<<"time: "<<runtimes<<endl;
 
      cv::swap(frame_prev, frame);
      frameNumber++;
@@ -2649,5 +2987,17 @@ void getHistImg(const MatND& hist, Mat& histImg)
         cv::line(histImg,Point(h,histSize),Point(h,histSize-intensity),Scalar::all(0));
     }
 
+    return;
+}
+
+void MainWindow::on_test_button_clicked()
+{
+    uint8_t i,j,k;
+    int out;
+    i=30;
+    j=20;
+    k=j-i;
+    out=k;
+    std::cout<<"test i="<<out<<std::endl;
     return;
 }
